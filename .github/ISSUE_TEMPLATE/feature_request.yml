@@ -1,0 +1,62 @@
+name: Feature request
+description: Suggest a new capability or an improvement to an existing one.
+title: "[feature] <short summary>"
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping shape Quorum. Motivate the change from a user perspective first; implementation details go last.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you solving?
+      description: Describe the user pain or missing capability. Skip the solution for now.
+      placeholder: "When running a live debate I want to …"
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: High-level sketch of what the change would look like — API, CLI flag, new agent, new tool, etc.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you thought about and why you discarded them.
+    validations:
+      required: false
+  - type: dropdown
+    id: milestone
+    attributes:
+      label: Which milestone does this touch?
+      description: Rough anchor in the Quorum roadmap. Unsure is fine.
+      options:
+        - "Milestone 1 — orchestrator + MCP"
+        - "Milestone 2 — Squads V4 devnet"
+        - "Milestone 3 — Jupiter execution"
+        - "Milestone 4 — Shapley attributor"
+        - "Milestone 5 — Risk + Flow + Sentiment agents"
+        - "Milestone 6 — mainnet cutover"
+        - "Milestone 7 — dashboard / Arweave pinning"
+        - "Milestone 8 — submission polish"
+        - "Unsure"
+    validations:
+      required: true
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Screenshots, links, related issues, benchmarks — anything that helps.
+    validations:
+      required: false
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I searched existing issues and discussions for duplicates.
+          required: true
