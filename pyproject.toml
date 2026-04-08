@@ -12,6 +12,7 @@ dependencies = [
     "langchain-core>=0.3.0",
     "pydantic>=2.9.0",
     "python-dotenv>=1.0.1",
+    "mcp>=1.0.0",
 ]
 
 [dependency-groups]
@@ -27,6 +28,7 @@ package = false
 testpaths = ["tests"]
 markers = [
     "requires_llm: marks tests that need a real LLM API key (deselect with -m 'not requires_llm')",
+    "requires_mcp: marks tests that spawn a real MCP server subprocess (deselect with -m 'not requires_mcp')",
 ]
 asyncio_mode = "auto"
 
