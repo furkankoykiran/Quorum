@@ -1,0 +1,38 @@
+{
+  "sources": [
+    {
+      "id": "coindesk",
+      "name": "CoinDesk",
+      "url": "https://www.coindesk.com/arc/outboundfeeds/rss/",
+      "type": "rss",
+      "enabled": true
+    },
+    {
+      "id": "the-block",
+      "name": "The Block",
+      "url": "https://www.theblock.co/rss.xml",
+      "type": "rss",
+      "enabled": true
+    },
+    {
+      "id": "bloomberg-markets",
+      "name": "Bloomberg Markets",
+      "url": "https://feeds.bloomberg.com/markets/news.rss",
+      "type": "rss",
+      "enabled": true
+    },
+    {
+      "id": "decrypt",
+      "name": "Decrypt",
+      "url": "https://decrypt.co/feed",
+      "type": "rss",
+      "enabled": true
+    }
+  ],
+  "configPollIntervalMs": 60000,
+  "requestTimeoutMs": 10000,
+  "sentinel": {
+    "failureThreshold": 3,
+    "recoveryTimeoutMs": 60000
+  }
+}
