@@ -38,20 +38,27 @@ class _ServerSpec:
     env_keys: tuple[str, ...] = field(default_factory=tuple)
 
 
-# Resolve the built freqtrade-mcp entrypoint from an env var so the path is
-# configurable per machine. Defaults to the sibling clone used during Day 2.
+# Resolve the built MCP server entrypoints from env vars so paths are
+# configurable per machine. Defaults target the sibling clones the Day 2
+# plan assumes live at /root/freqtrade-mcp and /root/OmniWire-MCP.
 _FREQTRADE_MCP_ENTRY = os.getenv(
     "FREQTRADE_MCP_ENTRY",
     "/root/freqtrade-mcp/build/index.js",
 )
+_OMNIWIRE_MCP_ENTRY = os.getenv(
+    "OMNIWIRE_MCP_ENTRY",
+    "/root/OmniWire-MCP/dist/index.js",
+)
 
 _SERVERS: dict[str, _ServerSpec] = {
-    # OmniWire is pulled straight from npm via `npx` so the Quorum repo does
-    # not need a vendored clone. `RSS_FEEDS` is required by the server; we
-    # also forward LOG_LEVEL if the user set one.
+    # OmniWire-MCP runs from the sibling clone at OMNIWIRE_MCP_ENTRY. Its
+    # npm publish name is @furkankoykiran/omniwire-mcp, not `omniwire-mcp`,
+    # so we avoid `npx` ambiguity and point Node directly at the built
+    # dist/index.js. `RSS_FEEDS` is required by the server; LOG_LEVEL is
+    # optional and forwarded when the user sets one.
     "omniwire": _ServerSpec(
-        command="npx",
-        args=["-y", "omniwire-mcp"],
+        command="node",
+        args=[_OMNIWIRE_MCP_ENTRY],
         env_keys=("RSS_FEEDS", "LOG_LEVEL"),
     ),
     # freqtrade-mcp is consumed from the sibling clone at FREQTRADE_MCP_ENTRY.
