@@ -1,13 +1,14 @@
-"""Milestone 1 acceptance test for the Quorum trading committee.
+"""Milestone 1 acceptance tests for the Quorum trading committee.
 
-Runs one full debate end-to-end and asserts:
+Two flavours:
 
-1. The transcript contains a turn from every specialist (tech, news, risk).
-2. Each turn carries a non-empty rationale, and the rationales are distinct.
-3. The final decision is one of BUY / SELL / HOLD.
-4. The vote tally matches the equal-weight rule used by `vote.tally`.
-
-This test is gated on `ANTHROPIC_API_KEY` so it can be skipped in offline CI.
+* `test_debate_runs_end_to_end` — live LLM gateway run, gated on
+  `ANTHROPIC_API_KEY`. Uses whatever tool routing the environment says
+  (live News + mock Tech by default on Day 2).
+* `test_debate_mock_mode` — forces `QUORUM_USE_MOCK=1` so every specialist
+  runs against the dummy tools. Still needs an LLM (the specialists are
+  LangGraph react agents), so it's also gated on `ANTHROPIC_API_KEY`, but
+  it does not touch any MCP subprocess or external network besides the LLM.
 """
 
 from __future__ import annotations
@@ -25,12 +26,9 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-@pytest.mark.requires_llm
-def test_debate_runs_end_to_end():
-    from apps.orchestrator.supervisor import run_debate
+def _assert_valid_debate(result) -> None:
+    """Shared assertions both debate tests apply to the result."""
     from apps.orchestrator.vote import tally
-
-    result = run_debate("SOL/USDC", thread_id="test-1")
 
     # 1. All three specialists must speak.
     agent_names = {turn["agent"] for turn in result.transcript}
@@ -49,3 +47,28 @@ def test_debate_runs_end_to_end():
     # 4. Tally matches the equal-weight rule.
     expected = tally(result.transcript)
     assert result.final_decision == expected
+
+
+@pytest.mark.requires_llm
+def test_debate_runs_end_to_end():
+    from apps.orchestrator.supervisor import run_debate
+
+    result = run_debate("SOL/USDC", thread_id="test-live")
+    _assert_valid_debate(result)
+
+
+@pytest.mark.requires_llm
+def test_debate_mock_mode(monkeypatch):
+    """Full debate with every specialist forced onto the dummy tools.
+
+    This is the offline happy path: no MCP subprocess, no external HTTP
+    except the LLM call itself. Catches regressions in the tool_registry
+    selector and keeps the `--mock` CLI flag honest.
+    """
+    monkeypatch.setenv("QUORUM_USE_MOCK", "1")
+
+    # Import AFTER setting the env var so the tool registry sees the flag.
+    from apps.orchestrator.supervisor import run_debate
+
+    result = run_debate("SOL/USDC", thread_id="test-mock")
+    _assert_valid_debate(result)
