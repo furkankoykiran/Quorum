@@ -1,0 +1,81 @@
+name: Bug report
+description: Something in Quorum is broken or behaves unexpectedly.
+title: "[bug] <short summary>"
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. Please fill in the sections below so we can reproduce and fix it fast.
+
+        **Security vulnerabilities go privately to furkankoykiran@gmail.com — do not file them here.** See [SECURITY.md](../blob/main/.github/SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: Commit SHA or branch
+      description: The exact commit you were running. `git rev-parse HEAD` is fine.
+      placeholder: "e.g. 8c82318 or main@HEAD"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of Quorum is affected?
+      options:
+        - orchestrator / supervisor
+        - orchestrator / tools (mcp clients, dummies)
+        - orchestrator / cli
+        - tests
+        - docs
+        - packages/solana-agent
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the bug and what you expected to happen instead.
+      placeholder: |
+        I ran `uv run python -m apps.orchestrator.cli debate --symbol SOL/USDC` and …
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Minimal commands or code to reproduce the issue. A failing test is ideal.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or stack trace
+      description: Paste the full error output. Redact secrets first.
+      render: shell
+    validations:
+      required: false
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python version, Node version, uv version, and any relevant env vars.
+      placeholder: |
+        - OS: Ubuntu 22.04 (WSL2)
+        - Python: 3.14.3
+        - uv: 0.10.10
+        - Node: 24.14
+        - QUORUM_USE_MOCK: unset
+    validations:
+      required: true
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I searched existing issues for duplicates.
+          required: true
+        - label: I redacted any secrets (API keys, private keys, passwords) from logs.
+          required: true
