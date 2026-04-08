@@ -1,0 +1,35 @@
+[project]
+name = "quorum-orchestrator"
+version = "0.1.0"
+description = "Multi-agent trading committee with Shapley-attributed on-chain payouts (SWARM Hackathon 2026)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Furkan Köykıran" }]
+dependencies = [
+    "langgraph>=0.2.50",
+    "langchain-anthropic>=0.2.0",
+    "langchain-core>=0.3.0",
+    "pydantic>=2.9.0",
+    "python-dotenv>=1.0.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "requires_llm: marks tests that need a real LLM API key (deselect with -m 'not requires_llm')",
+]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
