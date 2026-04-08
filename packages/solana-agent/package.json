@@ -1,0 +1,13 @@
+{
+  "name": "@quorum/solana-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Solana edge for Quorum: solana-agent-kit v2 + @sqds/multisig (populated from Milestone 2 onward).",
+  "license": "MIT",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  }
+}
