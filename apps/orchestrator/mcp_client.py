@@ -23,6 +23,7 @@ from __future__ import annotations
 import asyncio
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from mcp import ClientSession, StdioServerParameters
@@ -41,13 +42,11 @@ class _ServerSpec:
 # Resolve the built MCP server entrypoints from env vars so paths are
 # configurable per machine. Defaults target the sibling clones the Day 2
 # plan assumes live at /root/freqtrade-mcp and /root/OmniWire-MCP.
-_FREQTRADE_MCP_ENTRY = os.getenv(
-    "FREQTRADE_MCP_ENTRY",
-    "/root/freqtrade-mcp/build/index.js",
+_FREQTRADE_MCP_ENTRY = (
+    os.getenv("FREQTRADE_MCP_ENTRY", "").strip() or "/root/freqtrade-mcp/build/index.js"
 )
-_OMNIWIRE_MCP_ENTRY = os.getenv(
-    "OMNIWIRE_MCP_ENTRY",
-    "/root/OmniWire-MCP/dist/index.js",
+_OMNIWIRE_MCP_ENTRY = (
+    os.getenv("OMNIWIRE_MCP_ENTRY", "").strip() or "/root/OmniWire-MCP/dist/index.js"
 )
 
 _SERVERS: dict[str, _ServerSpec] = {
@@ -85,9 +84,15 @@ def _build_params(spec: _ServerSpec) -> StdioServerParameters:
         if value is not None:
             env[key] = value
     for key in spec.env_keys:
-        value = os.environ.get(key)
-        if value is not None:
+        value = os.environ.get(key, "").strip()
+        if value:
             env[key] = value
+    # Auto-load the committed crypto feed config for OmniWire when
+    # RSS_FEEDS is absent or empty — avoids getting generic tech news.
+    if "RSS_FEEDS" in spec.env_keys and "RSS_FEEDS" not in env:
+        _config = Path(__file__).resolve().parents[2] / "configs" / "omniwire_feeds.json"
+        if _config.exists():
+            env["RSS_FEEDS"] = _config.read_text(encoding="utf-8")
     return StdioServerParameters(command=spec.command, args=list(spec.args), env=env)
 
 
@@ -139,4 +144,15 @@ def call_tool(server: str, tool: str, arguments: dict[str, Any] | None = None) -
         KeyError: if `server` is not registered.
         RuntimeError: if the MCP server reports an error result.
     """
-    return asyncio.run(_call_tool_async(server, tool, arguments or {}))
+    coro = _call_tool_async(server, tool, arguments or {})
+    try:
+        asyncio.get_running_loop()
+        # Already inside an event loop (e.g. pytest-asyncio). Spin up a
+        # background thread so we don't nest asyncio.run() calls.
+        import concurrent.futures
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(asyncio.run, coro).result()
+    except RuntimeError:
+        # No running loop — safe to use asyncio.run() directly.
+        return asyncio.run(coro)
