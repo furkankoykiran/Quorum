@@ -17,8 +17,7 @@ Current routing (Day 2):
 
 from __future__ import annotations
 
-import os
-
+from .settings import get_settings
 from .tools import (
     get_headlines,
     get_headlines_live,
@@ -28,32 +27,21 @@ from .tools import (
 )
 
 
-def _is_mock() -> bool:
-    """True when the orchestrator should use offline mock tools only."""
-    value = os.environ.get("QUORUM_USE_MOCK", "").strip().lower()
-    return value in {"1", "true", "yes", "on"}
-
-
 def get_tech_tool():
     """Return the LangChain tool the Tech specialist should use.
 
-    Day 2 keeps this on `dummy_market.get_ohlcv` because this machine has
-    no running Freqtrade REST API. Setting `QUORUM_TECH_LIVE=1` alongside
-    the FREQTRADE_* env vars flips it without touching the agent code.
+    Setting ``QUORUM_TECH_LIVE=1`` alongside the ``FREQTRADE_*`` env vars
+    flips the Tech agent to live candle data without touching agent code.
     """
-    if not _is_mock() and os.environ.get("QUORUM_TECH_LIVE", "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }:
+    cfg = get_settings()
+    if not cfg.quorum_use_mock and cfg.quorum_tech_live:
         return get_ohlcv_live
     return get_ohlcv
 
 
 def get_news_tool():
     """Return the LangChain tool the News specialist should use."""
-    if _is_mock():
+    if get_settings().quorum_use_mock:
         return get_headlines
     return get_headlines_live
 
