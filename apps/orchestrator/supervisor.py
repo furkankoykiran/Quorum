@@ -60,7 +60,11 @@ def _build_model(model_name: str) -> ChatAnthropic:
     from .settings import get_settings
 
     cfg = get_settings()
-    kwargs: dict[str, Any] = {"model": model_name, "temperature": 0.0}
+    kwargs: dict[str, Any] = {
+        "model": model_name,
+        "temperature": 0.0,
+        "anthropic_api_key": cfg.anthropic_api_key,
+    }
     if cfg.anthropic_base_url.strip():
         kwargs["anthropic_api_url"] = cfg.anthropic_base_url
     return ChatAnthropic(**kwargs)
