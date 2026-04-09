@@ -22,78 +22,53 @@ from __future__ import annotations
 
 import asyncio
 import os
-from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
-
-@dataclass(frozen=True)
-class _ServerSpec:
-    """Static definition of how to launch one MCP server over stdio."""
-
-    command: str
-    args: list[str]
-    env_keys: tuple[str, ...] = field(default_factory=tuple)
+from .settings import get_settings
 
 
-# Resolve the built MCP server entrypoints from env vars so paths are
-# configurable per machine. Defaults target the sibling clones the Day 2
-# plan assumes live at /root/freqtrade-mcp and /root/OmniWire-MCP.
-_FREQTRADE_MCP_ENTRY = (
-    os.getenv("FREQTRADE_MCP_ENTRY", "").strip() or "/root/freqtrade-mcp/build/index.js"
-)
-_OMNIWIRE_MCP_ENTRY = (
-    os.getenv("OMNIWIRE_MCP_ENTRY", "").strip() or "/root/OmniWire-MCP/dist/index.js"
-)
-
-_SERVERS: dict[str, _ServerSpec] = {
-    # OmniWire-MCP runs from the sibling clone at OMNIWIRE_MCP_ENTRY. Its
-    # npm publish name is @furkankoykiran/omniwire-mcp, not `omniwire-mcp`,
-    # so we avoid `npx` ambiguity and point Node directly at the built
-    # dist/index.js. `RSS_FEEDS` is required by the server; LOG_LEVEL is
-    # optional and forwarded when the user sets one.
-    "omniwire": _ServerSpec(
-        command="node",
-        args=[_OMNIWIRE_MCP_ENTRY],
-        env_keys=("RSS_FEEDS", "LOG_LEVEL"),
-    ),
-    # freqtrade-mcp is consumed from the sibling clone at FREQTRADE_MCP_ENTRY.
-    # Every tool call requires a live Freqtrade REST API, so the Day 2 tech
-    # agent stays on dummy_market until those env vars are populated.
-    "freqtrade": _ServerSpec(
-        command="node",
-        args=[_FREQTRADE_MCP_ENTRY],
-        env_keys=("FREQTRADE_API_URL", "FREQTRADE_USERNAME", "FREQTRADE_PASSWORD"),
-    ),
-}
+def _build_omniwire_params() -> StdioServerParameters:
+    """Build stdio params for the OmniWire MCP server."""
+    cfg = get_settings()
+    env = _inherit_env()
+    feeds = cfg.rss_feeds_resolved
+    if feeds:
+        env["RSS_FEEDS"] = feeds
+    if cfg.log_level:
+        env["LOG_LEVEL"] = cfg.log_level
+    return StdioServerParameters(command="node", args=[cfg.omniwire_mcp_entry], env=env)
 
 
-def _build_params(spec: _ServerSpec) -> StdioServerParameters:
-    """Assemble StdioServerParameters, forwarding only the env keys we allow.
+def _build_freqtrade_params() -> StdioServerParameters:
+    """Build stdio params for the freqtrade MCP server."""
+    cfg = get_settings()
+    env = _inherit_env()
+    if cfg.freqtrade_api_url:
+        env["FREQTRADE_API_URL"] = cfg.freqtrade_api_url
+    if cfg.freqtrade_username:
+        env["FREQTRADE_USERNAME"] = cfg.freqtrade_username
+    if cfg.freqtrade_password:
+        env["FREQTRADE_PASSWORD"] = cfg.freqtrade_password
+    return StdioServerParameters(command="node", args=[cfg.freqtrade_mcp_entry], env=env)
 
-    We pass an explicit env dict (not `None`) so the subprocess inherits a
-    predictable environment. PATH/HOME are forwarded so `npx` and `node` can
-    resolve binaries and caches on any machine.
-    """
+
+def _inherit_env() -> dict[str, str]:
+    """Forward PATH/HOME/NODE_PATH so node can resolve binaries."""
     env: dict[str, str] = {}
     for key in ("PATH", "HOME", "NODE_PATH"):
         value = os.environ.get(key)
         if value is not None:
             env[key] = value
-    for key in spec.env_keys:
-        value = os.environ.get(key, "").strip()
-        if value:
-            env[key] = value
-    # Auto-load the committed crypto feed config for OmniWire when
-    # RSS_FEEDS is absent or empty — avoids getting generic tech news.
-    if "RSS_FEEDS" in spec.env_keys and "RSS_FEEDS" not in env:
-        _config = Path(__file__).resolve().parents[2] / "configs" / "omniwire_feeds.json"
-        if _config.exists():
-            env["RSS_FEEDS"] = _config.read_text(encoding="utf-8")
-    return StdioServerParameters(command=spec.command, args=list(spec.args), env=env)
+    return env
+
+
+_PARAM_BUILDERS: dict[str, Any] = {
+    "omniwire": _build_omniwire_params,
+    "freqtrade": _build_freqtrade_params,
+}
 
 
 def _flatten_content(content: Any) -> str:
@@ -114,10 +89,10 @@ def _flatten_content(content: Any) -> str:
 
 
 async def _call_tool_async(server: str, tool: str, arguments: dict[str, Any]) -> str:
-    spec = _SERVERS.get(server)
-    if spec is None:
-        raise KeyError(f"Unknown MCP server: {server!r}. Known: {sorted(_SERVERS)}")
-    params = _build_params(spec)
+    builder = _PARAM_BUILDERS.get(server)
+    if builder is None:
+        raise KeyError(f"Unknown MCP server: {server!r}. Known: {sorted(_PARAM_BUILDERS)}")
+    params = builder()
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()
