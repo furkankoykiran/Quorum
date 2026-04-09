@@ -3,6 +3,9 @@
 Usage:
     uv run python -m apps.orchestrator.cli debate --symbol SOL/USDC
     uv run python -m apps.orchestrator.cli debate --symbol SOL/USDC --mock
+    uv run python -m apps.orchestrator.cli debate --symbol SOL/USDT --verbose
+    uv run python -m apps.orchestrator.cli replay debate_runs/<file>.json
+    uv run python -m apps.orchestrator.cli replay debate_runs/<file>.json --delay 2.0
 
 Loads environment variables from `.env`, runs a single debate cycle, pretty
 prints the transcript + tally to stdout, and dumps the result as JSON into
@@ -55,6 +58,20 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Skip writing the JSON transcript to debate_runs/.",
     )
+    debate.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Stream each specialist turn as it lands with wall-clock timing.",
+    )
+
+    replay_cmd = sub.add_parser("replay", help="Replay a saved debate transcript.")
+    replay_cmd.add_argument("file", help="Path to a debate JSON file.")
+    replay_cmd.add_argument(
+        "--delay",
+        type=float,
+        default=1.0,
+        help="Seconds between specialist turns (default: 1.0, 0 = instant).",
+    )
 
     args = parser.parse_args(argv)
 
@@ -67,7 +84,7 @@ def main(argv: list[str] | None = None) -> int:
         from .persistence import save_debate
         from .supervisor import run_debate
 
-        result = run_debate(args.symbol, thread_id=args.thread_id)
+        result = run_debate(args.symbol, thread_id=args.thread_id, verbose=args.verbose)
         print(_format_result(result))
 
         if not result.transcript:
@@ -78,6 +95,14 @@ def main(argv: list[str] | None = None) -> int:
             path = save_debate(result)
             print(f"\n  transcript saved to: {path}")
         return 0
+
+    if args.cmd == "replay":
+        from pathlib import Path
+
+        from .replay import replay_debate
+
+        return replay_debate(Path(args.file), delay=args.delay)
+
     return 1
 
 

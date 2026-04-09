@@ -144,3 +144,40 @@ def test_tool_registry_defaults_to_live_news(monkeypatch):
     assert tool_registry.get_news_tool().name == "get_headlines_live"
     # Tech stays on dummy by default until QUORUM_TECH_LIVE=1.
     assert tool_registry.get_tech_tool().name == "get_ohlcv"
+
+
+# ---------------------------------------------------------------------------
+# replay.replay_debate
+# ---------------------------------------------------------------------------
+
+
+def test_replay_debate_prints_transcript(tmp_path: Path):
+    """replay_debate loads a JSON file and prints the cinematic output."""
+    import io
+
+    from apps.orchestrator.replay import replay_debate
+
+    debate_json = {
+        "symbol": "SOL/USDT",
+        "transcript": [
+            {"agent": "tech_agent", "vote": "BUY", "rationale": "RSI oversold"},
+            {"agent": "news_agent", "vote": "HOLD", "rationale": "mixed signals"},
+            {"agent": "risk_agent", "vote": "HOLD", "rationale": "caps ok"},
+        ],
+        "votes": {"tech_agent": "BUY", "news_agent": "HOLD", "risk_agent": "HOLD"},
+        "final_decision": "HOLD",
+    }
+    json_path = tmp_path / "test_debate.json"
+    json_path.write_text(json.dumps(debate_json), encoding="utf-8")
+
+    buf = io.StringIO()
+    rc = replay_debate(json_path, delay=0, stream=buf)
+    output = buf.getvalue()
+
+    assert rc == 0
+    assert "QUORUM REPLAY" in output
+    assert "SOL/USDT" in output
+    assert "tech_agent" in output
+    assert "news_agent" in output
+    assert "risk_agent" in output
+    assert "FINAL DECISION: HOLD" in output

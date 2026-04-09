@@ -149,7 +149,10 @@ def _build_workflow(model_name: str = DEFAULT_MODEL):
 
 
 def run_debate(
-    symbol: str, thread_id: str = "default", model_name: str = DEFAULT_MODEL
+    symbol: str,
+    thread_id: str = "default",
+    model_name: str = DEFAULT_MODEL,
+    verbose: bool = False,
 ) -> DebateResult:
     """Run one debate cycle and return a structured `DebateResult`.
 
@@ -157,12 +160,37 @@ def run_debate(
         symbol: Trading pair, e.g. "SOL/USDC".
         thread_id: LangGraph thread id for replay/persistence (Milestone 7).
         model_name: Override the Anthropic model id.
+        verbose: When ``True``, stream each specialist turn to stderr with
+            elapsed wall-clock timing as the debate progresses.
     """
     app = _build_workflow(model_name=model_name)
-    state: dict[str, Any] = app.invoke(
-        {"symbol": symbol, "transcript": []},
-        config={"configurable": {"thread_id": thread_id}, "recursion_limit": 50},
-    )
+    init = {"symbol": symbol, "transcript": []}
+    config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 50}
+
+    if verbose:
+        import sys
+        import time
+
+        state: dict[str, Any] = {"symbol": symbol, "transcript": [], "votes": {}}
+        t0 = time.monotonic()
+        for chunk in app.stream(init, config=config, stream_mode="updates"):
+            elapsed = time.monotonic() - t0
+            node_name = next(iter(chunk))
+            update = chunk[node_name]
+            if "transcript" in update:
+                state["transcript"].extend(update["transcript"])
+                for turn in update["transcript"]:
+                    print(
+                        f"  [{turn['agent']}] {turn['vote']}  ({elapsed:.1f}s)",
+                        file=sys.stderr,
+                    )
+            if "votes" in update:
+                state["votes"] = update["votes"]
+            if "final_decision" in update:
+                state["final_decision"] = update["final_decision"]
+    else:
+        state = app.invoke(init, config=config)
+
     transcript = list(state.get("transcript", []))
     votes = dict(state.get("votes", {}))
     final_decision = state.get("final_decision", tally(transcript))
