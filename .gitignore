@@ -36,3 +36,4 @@ target/
 *.log
 logs/
 debate_runs/
+data/
