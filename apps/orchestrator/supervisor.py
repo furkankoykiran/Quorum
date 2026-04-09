@@ -18,7 +18,6 @@ instruction, so the graph has to force the ordering.
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -30,8 +29,6 @@ from langgraph.graph import END, START, StateGraph
 from .agents import build_news_agent, build_risk_agent, build_tech_agent
 from .state import AgentTurn, DebateState, Vote
 from .vote import parse_final, tally
-
-DEFAULT_MODEL = os.getenv("QUORUM_MODEL", "claude-sonnet-4-6")
 
 
 @dataclass
@@ -60,10 +57,16 @@ def _build_model(model_name: str) -> ChatAnthropic:
     through the `anthropic_api_url` kwarg. Otherwise langchain-anthropic
     falls back to the public Anthropic endpoint.
     """
-    kwargs: dict[str, Any] = {"model": model_name, "temperature": 0.0}
-    base_url = os.getenv("ANTHROPIC_BASE_URL", "").strip()
-    if base_url:
-        kwargs["anthropic_api_url"] = base_url
+    from .settings import get_settings
+
+    cfg = get_settings()
+    kwargs: dict[str, Any] = {
+        "model": model_name,
+        "temperature": 0.0,
+        "anthropic_api_key": cfg.anthropic_api_key,
+    }
+    if cfg.anthropic_base_url.strip():
+        kwargs["anthropic_api_url"] = cfg.anthropic_base_url
     return ChatAnthropic(**kwargs)
 
 
@@ -127,8 +130,10 @@ def _tally_node(state: DebateState) -> dict[str, Any]:
     return {"votes": votes, "final_decision": final_decision}
 
 
-def _build_workflow(model_name: str = DEFAULT_MODEL):
-    model = _build_model(model_name)
+def _build_workflow(model_name: str | None = None):
+    from .settings import get_settings
+
+    model = _build_model(model_name or get_settings().quorum_model)
     tech_node = _make_specialist_node(build_tech_agent, "tech_agent", model)
     news_node = _make_specialist_node(build_news_agent, "news_agent", model)
     risk_node = _make_specialist_node(build_risk_agent, "risk_agent", model)
@@ -151,7 +156,7 @@ def _build_workflow(model_name: str = DEFAULT_MODEL):
 def run_debate(
     symbol: str,
     thread_id: str = "default",
-    model_name: str = DEFAULT_MODEL,
+    model_name: str | None = None,
     verbose: bool = False,
 ) -> DebateResult:
     """Run one debate cycle and return a structured `DebateResult`.

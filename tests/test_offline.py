@@ -120,30 +120,33 @@ def test_save_debate_writes_json_file(tmp_path: Path):
 
 
 def test_tool_registry_respects_mock_flag(monkeypatch):
-    import importlib
+    from apps.orchestrator.settings import Settings
+    from apps.orchestrator.tool_registry import get_news_tool, get_risk_tool, get_tech_tool
 
-    # Mock mode: news agent must receive the dummy headlines tool.
-    monkeypatch.setenv("QUORUM_USE_MOCK", "1")
-    monkeypatch.delenv("QUORUM_TECH_LIVE", raising=False)
-    from apps.orchestrator import tool_registry
+    mock_settings = Settings(quorum_use_mock=True, quorum_tech_live=False, _env_file=None)
+    monkeypatch.setattr(
+        "apps.orchestrator.tool_registry.get_settings",
+        lambda: mock_settings,
+    )
 
-    importlib.reload(tool_registry)  # re-read env
-    assert tool_registry.get_news_tool().name == "get_headlines"
-    assert tool_registry.get_tech_tool().name == "get_ohlcv"
-    assert tool_registry.get_risk_tool().name == "get_risk_caps"
+    assert get_news_tool().name == "get_headlines"
+    assert get_tech_tool().name == "get_ohlcv"
+    assert get_risk_tool().name == "get_risk_caps"
 
 
 def test_tool_registry_defaults_to_live_news(monkeypatch):
-    import importlib
+    from apps.orchestrator.settings import Settings
+    from apps.orchestrator.tool_registry import get_news_tool, get_tech_tool
 
-    monkeypatch.delenv("QUORUM_USE_MOCK", raising=False)
-    monkeypatch.delenv("QUORUM_TECH_LIVE", raising=False)
-    from apps.orchestrator import tool_registry
+    default_settings = Settings(quorum_use_mock=False, quorum_tech_live=False, _env_file=None)
+    monkeypatch.setattr(
+        "apps.orchestrator.tool_registry.get_settings",
+        lambda: default_settings,
+    )
 
-    importlib.reload(tool_registry)
-    assert tool_registry.get_news_tool().name == "get_headlines_live"
+    assert get_news_tool().name == "get_headlines_live"
     # Tech stays on dummy by default until QUORUM_TECH_LIVE=1.
-    assert tool_registry.get_tech_tool().name == "get_ohlcv"
+    assert get_tech_tool().name == "get_ohlcv"
 
 
 # ---------------------------------------------------------------------------

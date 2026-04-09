@@ -6,11 +6,11 @@ Usage:
     uv run python -m apps.orchestrator.cli debate --symbol SOL/USDT --verbose
     uv run python -m apps.orchestrator.cli replay debate_runs/<file>.json
     uv run python -m apps.orchestrator.cli replay debate_runs/<file>.json --delay 2.0
+    uv run python -m apps.orchestrator.cli run --interval 300 --symbol SOL/USDT
 
-Loads environment variables from `.env`, runs a single debate cycle, pretty
-prints the transcript + tally to stdout, and dumps the result as JSON into
-`debate_runs/` for Loom footage and Milestone 7 Arweave pinning. This
-script is the source of the SWARM `update-product` Loom recording.
+Runs a single debate cycle (or continuous loop), pretty-prints the
+transcript + tally to stdout, and dumps the result as JSON into
+``debate_runs/`` for Loom footage and Milestone 7 Arweave pinning.
 """
 
 from __future__ import annotations
@@ -19,8 +19,6 @@ import argparse
 import json
 import os
 import sys
-
-from dotenv import load_dotenv
 
 
 def _format_result(result) -> str:
@@ -41,7 +39,6 @@ def _format_result(result) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    load_dotenv()
     parser = argparse.ArgumentParser(prog="quorum", description="Quorum trading committee CLI.")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
@@ -73,11 +70,31 @@ def main(argv: list[str] | None = None) -> int:
         help="Seconds between specialist turns (default: 1.0, 0 = instant).",
     )
 
+    run_cmd = sub.add_parser("run", help="Continuous debate loop with metrics.")
+    run_cmd.add_argument("--symbol", default="SOL/USDT", help="Trading pair (default: SOL/USDT).")
+    run_cmd.add_argument(
+        "--interval",
+        type=int,
+        default=300,
+        help="Seconds between debates (default: 300).",
+    )
+    run_cmd.add_argument(
+        "--max-runs",
+        type=int,
+        default=0,
+        help="Stop after N runs (default: 0 = unlimited).",
+    )
+    run_cmd.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Stream each specialist turn as it lands.",
+    )
+
     args = parser.parse_args(argv)
 
     if args.cmd == "debate":
-        # `QUORUM_USE_MOCK` must be set BEFORE importing supervisor so the
-        # tool_registry selector sees it when the agents are built.
+        # Set QUORUM_USE_MOCK before settings are first read so
+        # pydantic-settings picks it up during construction.
         if args.mock:
             os.environ["QUORUM_USE_MOCK"] = "1"
 
@@ -102,6 +119,17 @@ def main(argv: list[str] | None = None) -> int:
         from .replay import replay_debate
 
         return replay_debate(Path(args.file), delay=args.delay)
+
+    if args.cmd == "run":
+        from .runner import run_continuous
+
+        run_continuous(
+            symbol=args.symbol,
+            interval=args.interval,
+            max_runs=args.max_runs,
+            verbose=args.verbose,
+        )
+        return 0
 
     return 1
 
