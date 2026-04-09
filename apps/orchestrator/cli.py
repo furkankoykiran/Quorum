@@ -20,8 +20,6 @@ import json
 import os
 import sys
 
-from dotenv import load_dotenv
-
 
 def _format_result(result) -> str:
     lines: list[str] = []
@@ -41,7 +39,6 @@ def _format_result(result) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    load_dotenv()
     parser = argparse.ArgumentParser(prog="quorum", description="Quorum trading committee CLI.")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
@@ -76,8 +73,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.cmd == "debate":
-        # `QUORUM_USE_MOCK` must be set BEFORE importing supervisor so the
-        # tool_registry selector sees it when the agents are built.
+        # Set QUORUM_USE_MOCK before settings are first read so
+        # pydantic-settings picks it up during construction.
         if args.mock:
             os.environ["QUORUM_USE_MOCK"] = "1"
 
