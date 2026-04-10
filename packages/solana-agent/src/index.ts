@@ -1,7 +1,6 @@
-// Quorum Solana edge — placeholder.
-// Populated from Milestone 2 onward with:
-//   - Squads V4 multisig wiring (@sqds/multisig)
-//   - Solana Agent Kit v2 + Jupiter swap (solana-agent-kit, @solana-agent-kit/plugin-defi)
-//   - Pyth HermesClient sanity-check
-//   - Shapley payout ix
-export const QUORUM_SOLANA_EDGE_VERSION = "0.1.0";
+// Quorum Solana edge — Milestone 2: Squads V4 multisig wiring.
+// Upcoming milestones:
+//   - M3: Solana Agent Kit v2 + Jupiter swap
+//   - M4: Shapley payout ix
+//   - M5: Pyth HermesClient sanity-check
+export const QUORUM_SOLANA_EDGE_VERSION = "0.2.0";
