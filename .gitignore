@@ -37,3 +37,6 @@ target/
 logs/
 debate_runs/
 data/
+
+# Solana keypairs (devnet operator wallets — never commit)
+keys/
