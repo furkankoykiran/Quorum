@@ -40,3 +40,7 @@ data/
 
 # Solana keypairs (devnet operator wallets — never commit)
 keys/
+
+# Solana test validator ledger
+test-ledger/
+.gstack/
