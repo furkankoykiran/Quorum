@@ -1,0 +1,29 @@
+[Unit]
+Description=Quorum continuous debate runner
+Documentation=https://github.com/furkankoykiran/Quorum
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/Quorum
+ExecStart=/root/.local/bin/uv run python -m apps.orchestrator.cli run --symbol SOL/USDT --interval 300
+Restart=on-failure
+RestartSec=30
+
+# Environment — uv reads .env via pydantic-settings, but PATH needs
+# node for MCP subprocesses and uv for the Python venv.
+Environment=PATH=/root/.local/bin:/root/.nvm/versions/node/v24.14.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=HOME=/root
+
+# Logging
+StandardOutput=append:/root/Quorum/data/runner.log
+StandardError=append:/root/Quorum/data/runner.log
+
+# Graceful shutdown — send SIGTERM, runner catches it and finishes
+# the current debate before exiting.
+KillSignal=SIGTERM
+TimeoutStopSec=120
+
+[Install]
+WantedBy=multi-user.target

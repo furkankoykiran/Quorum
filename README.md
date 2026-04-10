@@ -31,34 +31,78 @@ Tech / News / Risk / Flow / Sentiment   ← LangGraph specialist agents
 
 ## Repo layout
 
-- [apps/orchestrator/](apps/orchestrator/) — Python LangGraph supervisor + specialist agents (Milestone 1+)
+- [apps/orchestrator/](apps/orchestrator/) — Python LangGraph supervisor + specialist agents
 - [packages/solana-agent/](packages/solana-agent/) — TypeScript Solana edge: `solana-agent-kit` v2 + `@sqds/multisig` (Milestone 2+)
-- [tests/](tests/) — pytest suite
-- [docs/](docs/) — architecture notes
+- [tests/](tests/) — pytest suite (8 offline CI tests + LLM integration + MCP smoke tests)
+- [deploy/](deploy/) — systemd service + install/uninstall scripts
+- [configs/](configs/) — OmniWire RSS feed config (CoinDesk, The Block, Bloomberg, Decrypt)
 
-## Quick start (Milestone 1)
+## Quick start
 
 ```bash
-# 1. install Python deps with uv
+# Install Python deps
 uv sync
 
-# 2. configure
+# Configure
 cp .env.example .env
-# edit .env and set ANTHROPIC_API_KEY=sk-ant-...
+# edit .env — set ANTHROPIC_API_KEY (required), rest has sane defaults
 
-# 3. run a debate from the CLI
-uv run python -m apps.orchestrator.cli debate --symbol SOL/USDC
+# Run a single debate (mock mode — no MCP servers needed)
+uv run python -m apps.orchestrator.cli debate --symbol SOL/USDT --mock
 
-# 4. run the acceptance test
-uv run pytest tests/test_debate.py -v
+# Run a single debate (live — real Binance candles + crypto news)
+uv run python -m apps.orchestrator.cli debate --symbol SOL/USDT --verbose
+
+# Replay a saved transcript
+uv run python -m apps.orchestrator.cli replay debate_runs/<file>.json
+
+# Run continuous 24/7 debate loop (every 5 minutes, with metrics)
+uv run python -m apps.orchestrator.cli run --symbol SOL/USDT --interval 300
+```
+
+## Live MCP wiring
+
+| Agent | Tool | Source | Status |
+|---|---|---|---|
+| Tech | `get_ohlcv_live` | [freqtrade-mcp](https://github.com/furkankoykiran/freqtrade-mcp) → Binance OHLCV + RSI + support/resistance | live |
+| News | `get_headlines_live` | [OmniWire-MCP](https://github.com/furkankoykiran/OmniWire-MCP) → CoinDesk, The Block, Bloomberg, Decrypt | live |
+| Risk | `get_risk_caps` | Hardcoded trade envelope (position caps, slippage, kill switch) | mock (Milestone 5) |
+
+Toggle with `QUORUM_USE_MOCK=1` (all dummy) or `QUORUM_TECH_LIVE=1` (live Tech agent). Config is centralised in `apps/orchestrator/settings.py` via [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/).
+
+## Deployment
+
+```bash
+# Install as a systemd service (runs debates every 5 minutes)
+sudo bash deploy/install.sh
+
+# Check status
+systemctl status quorum-runner
+cat data/runner_metrics.json
+
+# Stop
+sudo bash deploy/uninstall.sh
+```
+
+## Tests
+
+```bash
+# Offline CI suite (no API keys needed, ~2s)
+uv run pytest tests/test_offline.py -v
+
+# Live MCP smoke tests (needs running Freqtrade + OmniWire)
+uv run pytest tests/test_mcp_clients.py -v -m requires_mcp
+
+# Full LLM debate scenarios (needs ANTHROPIC_API_KEY)
+uv run pytest tests/test_debate_scenarios.py -v
 ```
 
 ## Status
 
 | Milestone | Days | Status |
 |---|---|---|
-| 1. LangGraph supervisor + 3 dummy specialists + acceptance test | 1–3 | in progress |
-| 2. Squads V4 multisig on devnet | 4–7 | pending |
+| 1. LangGraph supervisor + live Tech/News MCP + CLI + continuous runner | 1–3 | done |
+| 2. Squads V4 multisig on devnet | 4–7 | in progress |
 | 3. Jupiter swap via solana-agent-kit v2 | 8–12 | pending |
 | 4. Shapley attributor + on-chain payout ix | 13–17 | pending |
 | 5. Flow + Sentiment agents, 7-day devnet paper trade | 18–22 | pending |
