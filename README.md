@@ -94,6 +94,25 @@ pnpm tsx src/create-multisig.ts --url https://api.devnet.solana.com
 
 **Current devnet multisig:** [`CwmNKs3f4S6Ct8h3ATR2fwyXyNu3hEF8NCF9sePzVkVw`](https://explorer.solana.com/address/CwmNKs3f4S6Ct8h3ATR2fwyXyNu3hEF8NCF9sePzVkVw?cluster=devnet) (3-of-5 threshold, 5 operator members)
 
+### Vault transaction round-trip
+
+```bash
+cd packages/solana-agent
+
+# Inspect multisig state + vault balance
+pnpm tsx src/check-multisig.ts --multisig CwmNKs3f4S6Ct8h3ATR2fwyXyNu3hEF8NCF9sePzVkVw
+
+# Fund the vault once (operator-1 pays)
+solana transfer FLjG8WcMod7386qhXFV4hSnwx1BzZukSupmD99FmtegC 0.5 \
+  --from ../../keys/operator-1.json --url devnet --allow-unfunded-recipient \
+  --fee-payer ../../keys/operator-1.json
+
+# Run the full lifecycle: create -> propose -> approve x3 -> execute
+pnpm tsx src/vault-transaction.ts --multisig CwmNKs3f4S6Ct8h3ATR2fwyXyNu3hEF8NCF9sePzVkVw
+```
+
+`vault-transaction.ts` wraps a `SystemProgram.transfer` from the vault PDA in a Squads V4 `vaultTransactionCreate`, opens a proposal, collects 3 of 5 approvals (operator-1 pays fees for all three so operators 2+ don't need devnet SOL), executes, and verifies the recipient balance delta on-chain. The round-trip emits six Solana Explorer links — see PR #14 for a live devnet trace.
+
 ## CLI Reference
 
 ### `debate` -- Run a single trading-committee debate
@@ -211,8 +230,10 @@ apps/orchestrator/       Python LangGraph supervisor + specialist agents
   persistence.py         JSON transcript persistence
 
 packages/solana-agent/   TypeScript Solana edge
-  src/create-multisig.ts Squads V4 3-of-5 multisig initialization
-  src/index.ts           Package entrypoint
+  src/create-multisig.ts  Squads V4 3-of-5 multisig initialization
+  src/check-multisig.ts   Read-only multisig status utility
+  src/vault-transaction.ts Full vault tx lifecycle (create -> propose -> approve x3 -> execute)
+  src/index.ts            Package entrypoint
 
 tests/                   pytest suite
   test_offline.py        8 offline CI tests (vote, persistence, tools, replay)
