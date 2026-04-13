@@ -6,9 +6,10 @@
  * balance.
  *
  * Usage:
- *   pnpm tsx src/check-multisig.ts --multisig <pda> [--url <rpc-url>]
+ *   pnpm tsx src/check-multisig.ts --multisig <pda> [--mint <pubkey>] [--url <rpc-url>]
  *
- * --multisig is required. --url defaults to SOLANA_RPC_URL or
+ * --multisig is required. --mint is optional (prints vault ATA balance for
+ * that SPL mint). --url defaults to SOLANA_RPC_URL or
  * https://api.devnet.solana.com.
  */
 
@@ -17,6 +18,13 @@ import {
   LAMPORTS_PER_SOL,
   PublicKey,
 } from "@solana/web3.js";
+import {
+  getAssociatedTokenAddressSync,
+  getAccount,
+  getMint,
+  TokenAccountNotFoundError,
+  TokenInvalidAccountOwnerError,
+} from "@solana/spl-token";
 import * as multisig from "@sqds/multisig";
 
 // ---------------------------------------------------------------------------
@@ -109,6 +117,33 @@ async function main() {
 
   console.log(`\nVault PDA (index 0): ${vaultPda.toBase58()}`);
   console.log(`Vault balance:       ${vaultBalance / LAMPORTS_PER_SOL} SOL (${vaultBalance} lamports)`);
+
+  // Optional: display vault SPL token balance for a given mint
+  const mintArg = getArg("--mint");
+  if (mintArg) {
+    const mintPubkey = new PublicKey(mintArg);
+    const vaultAta = getAssociatedTokenAddressSync(mintPubkey, vaultPda, true);
+    console.log(`\nVault ATA (mint ${mintPubkey.toBase58()}):`);
+    console.log(`  ATA address: ${vaultAta.toBase58()}`);
+    try {
+      const ataAccount = await getAccount(connection, vaultAta);
+      const mintAccount = await getMint(connection, mintPubkey);
+      const uiBalance =
+        Number(ataAccount.amount) / 10 ** mintAccount.decimals;
+      console.log(
+        `  Balance:     ${uiBalance.toLocaleString()} tokens (${ataAccount.amount.toString()} raw)`
+      );
+    } catch (err) {
+      if (
+        err instanceof TokenAccountNotFoundError ||
+        err instanceof TokenInvalidAccountOwnerError
+      ) {
+        console.log(`  Balance:     ATA not yet created`);
+      } else {
+        throw err;
+      }
+    }
+  }
 
   console.log(`\nExplorer:`);
   console.log(`  Multisig: ${explorerLink(multisigPda.toBase58(), rpcUrl)}`);
