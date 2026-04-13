@@ -113,6 +113,32 @@ pnpm tsx src/vault-transaction.ts --multisig CwmNKs3f4S6Ct8h3ATR2fwyXyNu3hEF8NCF
 
 `vault-transaction.ts` wraps a `SystemProgram.transfer` from the vault PDA in a Squads V4 `vaultTransactionCreate`, opens a proposal, collects 3 of 5 approvals (operator-1 pays fees for all three so operators 2+ don't need devnet SOL), executes, and verifies the recipient balance delta on-chain. The round-trip emits six Solana Explorer links — see PR #14 for a live devnet trace.
 
+### SPL token round-trip
+
+The vault can also hold and transfer SPL tokens through the same Squads V4 multisig lifecycle.
+
+```bash
+cd packages/solana-agent
+
+# 1. Create a mock-USDC mint (6 decimals, 1M supply to operator-1)
+pnpm tsx src/create-mint.ts
+# Prints the mint pubkey — record it for subsequent commands
+
+# 2. Check vault SPL balance for a given mint
+pnpm tsx src/check-multisig.ts \
+  --multisig CwmNKs3f4S6Ct8h3ATR2fwyXyNu3hEF8NCF9sePzVkVw \
+  --mint <mint-pubkey>
+
+# 3. Run the full SPL lifecycle: fund vault -> create -> propose -> approve x3 -> execute
+pnpm tsx src/vault-spl-transaction.ts \
+  --multisig CwmNKs3f4S6Ct8h3ATR2fwyXyNu3hEF8NCF9sePzVkVw \
+  --mint <mint-pubkey>
+```
+
+**Current devnet mint:** [`6iZ7Z8w1y2zhzRagvWCcQdqRG6KEBLxrjVrWHdpNBKMT`](https://explorer.solana.com/address/6iZ7Z8w1y2zhzRagvWCcQdqRG6KEBLxrjVrWHdpNBKMT?cluster=devnet) (mock-USDC, 6 decimals, operator-1 has mint authority)
+
+`vault-spl-transaction.ts` creates the vault's associated token account if needed, funds it from operator-1, builds an SPL `createTransferInstruction` wrapped in the Squads `vaultTransactionCreate` → `proposalCreate` → `proposalApprove × 3` → `vaultTransactionExecute` lifecycle, and verifies the recipient ATA balance delta on-chain.
+
 ## CLI Reference
 
 ### `debate` -- Run a single trading-committee debate
@@ -230,10 +256,12 @@ apps/orchestrator/       Python LangGraph supervisor + specialist agents
   persistence.py         JSON transcript persistence
 
 packages/solana-agent/   TypeScript Solana edge
-  src/create-multisig.ts  Squads V4 3-of-5 multisig initialization
-  src/check-multisig.ts   Read-only multisig status utility
-  src/vault-transaction.ts Full vault tx lifecycle (create -> propose -> approve x3 -> execute)
-  src/index.ts            Package entrypoint
+  src/create-multisig.ts       Squads V4 3-of-5 multisig initialization
+  src/create-mint.ts           Mock-USDC SPL mint bootstrap (6 decimals)
+  src/check-multisig.ts        Read-only multisig + SPL balance utility
+  src/vault-transaction.ts     SOL vault tx lifecycle (create -> propose -> approve x3 -> execute)
+  src/vault-spl-transaction.ts SPL token vault tx lifecycle
+  src/index.ts                 Package entrypoint
 
 tests/                   pytest suite
   test_offline.py        8 offline CI tests (vote, persistence, tools, replay)
