@@ -85,7 +85,11 @@ function getMultisigPda(): PublicKey {
         "--mint <pubkey> [--recipient <pubkey>] [--amount <tokens>] [--url <rpc>]"
     );
   }
-  return new PublicKey(pda);
+  try {
+    return new PublicKey(pda);
+  } catch {
+    throw new Error(`Invalid base58 public key for --multisig: "${pda}"`);
+  }
 }
 
 function getMintPubkey(): PublicKey {
@@ -97,7 +101,11 @@ function getMintPubkey(): PublicKey {
         "--mint <pubkey> [--recipient <pubkey>] [--amount <tokens>] [--url <rpc>]"
     );
   }
-  return new PublicKey(mint);
+  try {
+    return new PublicKey(mint);
+  } catch {
+    throw new Error(`Invalid base58 public key for --mint: "${mint}"`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -173,8 +181,8 @@ async function sendAndConfirmIx(
         for (const line of logs) {
           console.error(`  ${line}`);
         }
-      } catch {
-        // ignore
+      } catch (_err) {
+        // ignore — getLogs() can fail if the tx was dropped
       }
     }
     throw err;
@@ -342,7 +350,7 @@ async function main() {
   try {
     const acct = await getAccount(connection, recipientAta);
     recipientBalanceBefore = acct.amount;
-  } catch {
+  } catch (_err) {
     // ATA might have just been created — balance is 0
   }
   console.log(`\nRecipient balance before: ${recipientBalanceBefore.toString()} raw`);

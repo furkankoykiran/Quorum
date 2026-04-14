@@ -93,7 +93,7 @@ async function main() {
   console.log(`Balance:    ${balance / LAMPORTS_PER_SOL} SOL`);
   if (balance < 0.05 * LAMPORTS_PER_SOL) {
     throw new Error(
-      "Operator-1 has insufficient SOL. Airdrop at least 0.1 SOL first."
+      "Operator-1 has insufficient SOL (need ≥0.05). Airdrop with: solana airdrop 0.1 <pubkey> --url devnet"
     );
   }
 
