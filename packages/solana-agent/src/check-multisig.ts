@@ -55,7 +55,11 @@ function getMultisigPda(): PublicKey {
         "Usage: pnpm tsx src/check-multisig.ts --multisig <pda> [--url <rpc>]"
     );
   }
-  return new PublicKey(pda);
+  try {
+    return new PublicKey(pda);
+  } catch {
+    throw new Error(`Invalid base58 public key for --multisig: "${pda}"`);
+  }
 }
 
 // Squads V4 Permissions bitmask: Initiate=1, Vote=2, Execute=4, All=7.

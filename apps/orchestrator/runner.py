@@ -25,6 +25,35 @@ from pathlib import Path
 from .persistence import save_debate
 from .supervisor import DebateResult, run_debate
 
+# Retry configuration for transient (rate-limit) failures
+_MAX_RETRIES = 3
+_INITIAL_BACKOFF_S = 30  # 30s → 90s → 270s (×3 geometric)
+
+
+def _is_rate_limit(exc: BaseException) -> bool:
+    """Return True if *exc* is a rate-limit error (possibly wrapped in ExceptionGroup).
+
+    LangGraph's internal asyncio.TaskGroup wraps 429 RateLimitErrors in an
+    ExceptionGroup on Python ≥3.11. We unwrap one level and check the message.
+    """
+    msg = str(exc).lower()
+    if "rate limit" in msg or "429" in msg or "rate_limit" in msg:
+        return True
+    # ExceptionGroup is only available on Python ≥3.11
+    import builtins
+
+    eg_type = getattr(builtins, "ExceptionGroup", None)
+    if eg_type is not None and isinstance(exc, eg_type):
+        return any(_is_rate_limit(sub) for sub in exc.exceptions)  # type: ignore[union-attr]
+    return False
+
+
+def _classify_error(exc: Exception) -> str:
+    """Return a short category tag for metrics."""
+    if _is_rate_limit(exc):
+        return "rate_limit"
+    return "other"
+
 
 @dataclass
 class RunnerMetrics:
@@ -33,7 +62,9 @@ class RunnerMetrics:
     total: int = 0
     success: int = 0
     errors: int = 0
+    rate_limit_errors: int = 0
     parse_failures: int = 0
+    retries: int = 0
     latencies: list[float] = field(default_factory=list)
     error_log: list[dict] = field(default_factory=list)
 
@@ -67,19 +98,24 @@ class RunnerMetrics:
     def record_error(self, error: Exception, elapsed: float) -> None:
         self.total += 1
         self.errors += 1
+        category = _classify_error(error)
+        if category == "rate_limit":
+            self.rate_limit_errors += 1
         self.latencies.append(elapsed)
         self.error_log.append(
             {
                 "ts": datetime.now(timezone.utc).isoformat(),
                 "error": str(error),
                 "type": type(error).__name__,
+                "category": category,
             }
         )
 
     def summary(self) -> str:
         lines = [
             f"  runs: {self.total}  |  ok: {self.success}  |  errors: {self.errors}"
-            f"  |  parse_fail: {self.parse_failures}",
+            f"  (rate_limit: {self.rate_limit_errors})"
+            f"  |  parse_fail: {self.parse_failures}  |  retries: {self.retries}",
             f"  success rate: {self.success_rate:.1f}%",
             f"  latency avg: {self.avg_latency:.1f}s  |  p95: {self.p95_latency:.1f}s",
         ]
@@ -90,7 +126,9 @@ class RunnerMetrics:
             "total": self.total,
             "success": self.success,
             "errors": self.errors,
+            "rate_limit_errors": self.rate_limit_errors,
             "parse_failures": self.parse_failures,
+            "retries": self.retries,
             "success_rate": round(self.success_rate, 2),
             "avg_latency": round(self.avg_latency, 2),
             "p95_latency": round(self.p95_latency, 2),
@@ -142,9 +180,36 @@ def run_continuous(
         print(f"  [{ts}] run #{run_num} ...", end="", file=sys.stderr, flush=True)
 
         t0 = time.monotonic()
-        try:
-            result = run_debate(symbol, thread_id=f"runner-{run_num}", verbose=verbose)
-            elapsed = time.monotonic() - t0
+        result = None
+        last_exc: Exception | None = None
+
+        for attempt in range(_MAX_RETRIES):
+            if _STOP:
+                break
+            try:
+                result = run_debate(symbol, thread_id=f"runner-{run_num}", verbose=verbose)
+                break
+            except Exception as exc:
+                last_exc = exc
+                if attempt < _MAX_RETRIES - 1 and _is_rate_limit(exc):
+                    backoff = _INITIAL_BACKOFF_S * (3**attempt)
+                    metrics.retries += 1
+                    print(
+                        f"  rate-limited (attempt {attempt + 1}/{_MAX_RETRIES}),"
+                        f" retrying in {backoff}s...",
+                        end="",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                    for _ in range(backoff):
+                        if _STOP:
+                            break
+                        time.sleep(1)
+                else:
+                    break  # non-retryable or final attempt
+
+        elapsed = time.monotonic() - t0
+        if result is not None:
             metrics.record_success(result, elapsed)
             save_debate(result)
             print(
@@ -152,10 +217,9 @@ def run_continuous(
                 f"  [{metrics.success}/{metrics.total} ok]",
                 file=sys.stderr,
             )
-        except Exception as exc:
-            elapsed = time.monotonic() - t0
-            metrics.record_error(exc, elapsed)
-            print(f"  ERROR: {exc}  ({elapsed:.1f}s)", file=sys.stderr)
+        elif last_exc is not None:
+            metrics.record_error(last_exc, elapsed)
+            print(f"  ERROR: {last_exc}  ({elapsed:.1f}s)", file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
 
         # Persist metrics after every run

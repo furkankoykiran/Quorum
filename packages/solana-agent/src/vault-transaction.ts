@@ -76,7 +76,11 @@ function getMultisigPda(): PublicKey {
         "[--recipient <pubkey>] [--amount <sol>] [--url <rpc>]"
     );
   }
-  return new PublicKey(pda);
+  try {
+    return new PublicKey(pda);
+  } catch {
+    throw new Error(`Invalid base58 public key for --multisig: "${pda}"`);
+  }
 }
 
 function getAmountLamports(): number {
@@ -163,8 +167,8 @@ async function sendAndConfirmIx(
         for (const line of logs) {
           console.error(`  ${line}`);
         }
-      } catch {
-        // ignore
+      } catch (_err) {
+        // ignore — getLogs() can fail if the tx was dropped
       }
     }
     throw err;

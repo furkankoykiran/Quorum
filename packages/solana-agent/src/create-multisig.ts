@@ -86,7 +86,7 @@ async function main() {
   );
   if (creatorBalance < 0.05 * LAMPORTS_PER_SOL) {
     throw new Error(
-      "Creator has insufficient SOL. Airdrop at least 0.1 SOL first."
+      "Creator has insufficient SOL (need ≥0.05). Airdrop with: solana airdrop 0.1 <pubkey> --url devnet"
     );
   }
 
