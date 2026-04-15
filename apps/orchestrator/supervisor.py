@@ -21,7 +21,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage
 from langgraph.graph import END, START, StateGraph
@@ -50,24 +49,38 @@ class DebateResult:
         }
 
 
-def _build_model(model_name: str) -> ChatAnthropic:
-    """Build a ChatAnthropic client, honouring optional ANTHROPIC_BASE_URL.
+def _build_model(model_name: str) -> BaseChatModel:
+    """Build a LiteLLM-backed chat model for any `provider/model` id.
 
-    If `ANTHROPIC_BASE_URL` is set (e.g. a proxy or gateway), we wire it
-    through the `anthropic_api_url` kwarg. Otherwise langchain-anthropic
-    falls back to the public Anthropic endpoint.
+    Uses ``langchain_community.chat_models.ChatLiteLLM`` so the same code
+    path works for DeepSeek, Anthropic, OpenAI, Gemini, etc. Provider is
+    inferred from the prefix of ``model_name`` (e.g. ``deepseek/...`` or
+    ``anthropic/...``). Per-provider API keys come from :mod:`settings`
+    and are exposed as env vars for LiteLLM to pick up.
     """
+    from langchain_litellm import ChatLiteLLM
+
     from .settings import get_settings
 
     cfg = get_settings()
-    kwargs: dict[str, Any] = {
-        "model": model_name,
-        "temperature": 0.0,
-        "anthropic_api_key": cfg.anthropic_api_key,
-    }
+
+    # LiteLLM reads provider keys from env vars. Surface whichever keys the
+    # user has set so any provider in quorum_model works without extra wiring.
+    import os
+
+    if cfg.deepseek_api_key:
+        os.environ.setdefault("DEEPSEEK_API_KEY", cfg.deepseek_api_key)
+        os.environ.setdefault("DEEPSEEK_API_BASE", cfg.deepseek_api_base)
+    if cfg.anthropic_api_key:
+        os.environ.setdefault("ANTHROPIC_API_KEY", cfg.anthropic_api_key)
     if cfg.anthropic_base_url.strip():
-        kwargs["anthropic_api_url"] = cfg.anthropic_base_url
-    return ChatAnthropic(**kwargs)
+        os.environ.setdefault("ANTHROPIC_API_BASE", cfg.anthropic_base_url)
+    if cfg.openai_api_key:
+        os.environ.setdefault("OPENAI_API_KEY", cfg.openai_api_key)
+    if cfg.gemini_api_key:
+        os.environ.setdefault("GEMINI_API_KEY", cfg.gemini_api_key)
+
+    return ChatLiteLLM(model=model_name, temperature=0.0)
 
 
 def _last_ai_text(messages: list[BaseMessage]) -> str:
@@ -164,7 +177,7 @@ def run_debate(
     Args:
         symbol: Trading pair, e.g. "SOL/USDC".
         thread_id: LangGraph thread id for replay/persistence (Milestone 7).
-        model_name: Override the Anthropic model id.
+        model_name: Override the LiteLLM `provider/model` id.
         verbose: When ``True``, stream each specialist turn to stderr with
             elapsed wall-clock timing as the debate progresses.
     """

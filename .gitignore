@@ -47,3 +47,6 @@ keys/
 # Solana test validator ledger
 test-ledger/
 .gstack/
+
+# Workspace-local Claude Code skills (manim_skill installed for video updates).
+.claude/skills/
