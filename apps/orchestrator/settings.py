@@ -40,17 +40,40 @@ class Settings(BaseSettings):
     )
 
     # --- Milestone 1: orchestrator ---
+    # LiteLLM-style `provider/model` id. Routes through ChatLiteLLM so every
+    # specialist can be benchmarked against a different provider by flipping
+    # this one field (e.g. "deepseek/deepseek-chat", "anthropic/claude-sonnet-4-6",
+    # "gemini/gemini-1.5-pro", "openai/gpt-4o-mini").
+    quorum_model: str = Field(
+        default="deepseek/deepseek-chat",
+        description="LiteLLM provider/model id used by every specialist agent.",
+    )
+
+    # Per-provider API keys. LiteLLM auto-reads whichever one matches the
+    # provider prefix in quorum_model. Blank keys are ignored.
+    deepseek_api_key: str = Field(
+        default="",
+        description="DeepSeek API key. Used when quorum_model starts with 'deepseek/'.",
+    )
+    deepseek_api_base: str = Field(
+        default="https://api.deepseek.com/v1",
+        description="DeepSeek API base URL (OpenAI-compatible).",
+    )
     anthropic_api_key: str = Field(
         default="",
-        description="Anthropic API key for the LLM agents.",
+        description="Anthropic API key. Used when quorum_model starts with 'anthropic/'.",
     )
     anthropic_base_url: str = Field(
         default="",
-        description="Custom Anthropic API endpoint (proxy/gateway). Blank = default.",
+        description="Custom Anthropic endpoint (proxy/gateway). Blank = default.",
     )
-    quorum_model: str = Field(
-        default="claude-sonnet-4-6",
-        description="LLM model id for every specialist agent.",
+    openai_api_key: str = Field(
+        default="",
+        description="OpenAI API key. Used when quorum_model starts with 'openai/'.",
+    )
+    gemini_api_key: str = Field(
+        default="",
+        description="Google Gemini API key. Used when quorum_model starts with 'gemini/'.",
     )
     quorum_use_mock: bool = Field(
         default=False,
