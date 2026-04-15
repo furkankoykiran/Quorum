@@ -50,3 +50,9 @@ test-ledger/
 
 # Workspace-local Claude Code skills (manim_skill installed for video updates).
 .claude/skills/
+
+# Local-only tooling (reporter framework, personal scripts).
+.local/
+
+# Personal Claude Code slash commands (not shared with teammates).
+.claude/commands/

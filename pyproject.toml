@@ -21,6 +21,7 @@ dependencies = [
 [project.optional-dependencies]
 reporter = [
     "manim>=0.18",
+    "edge-tts>=6.1",
 ]
 
 [dependency-groups]
