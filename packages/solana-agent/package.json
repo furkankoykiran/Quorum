@@ -2,7 +2,7 @@
   "name": "@quorum/solana-agent",
   "version": "0.1.0",
   "private": true,
-  "description": "Solana edge for Quorum: solana-agent-kit v2 + @sqds/multisig (populated from Milestone 2 onward).",
+  "description": "Solana edge for Quorum: @sqds/multisig V4 + @jup-ag/api + @pythnetwork/hermes-client. Built on raw web3.js instead of solana-agent-kit so swap instructions can be wrapped in multisig vault transactions.",
   "license": "MIT",
   "type": "module",
   "main": "src/index.ts",
