@@ -10,10 +10,17 @@ dependencies = [
     "langgraph>=0.2.50",
     "langchain-anthropic>=0.2.0",
     "langchain-core>=0.3.0",
+    "langchain-litellm>=0.1.0",
+    "litellm>=1.50.0",
     "pydantic>=2.9.0",
     "python-dotenv>=1.0.1",
     "mcp>=1.0.0",
     "pydantic-settings>=2.13.1",
+]
+
+[project.optional-dependencies]
+reporter = [
+    "manim>=0.18",
 ]
 
 [dependency-groups]
