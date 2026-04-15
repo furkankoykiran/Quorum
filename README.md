@@ -51,7 +51,9 @@ uv sync
 
 # 3. Configure environment
 cp .env.example .env
-# Edit .env -- set ANTHROPIC_API_KEY (required), rest has sane defaults
+# Edit .env -- set DEEPSEEK_API_KEY (default provider); swap QUORUM_MODEL
+# to any LiteLLM-supported `provider/model` id for benchmarking
+# (anthropic/..., openai/..., gemini/...).
 
 # 4. Run a single debate in mock mode (no external services needed)
 uv run python -m apps.orchestrator.cli debate --symbol SOL/USDT --mock
