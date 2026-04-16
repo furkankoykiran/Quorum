@@ -98,7 +98,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.mock:
             os.environ["QUORUM_USE_MOCK"] = "1"
 
-        from .persistence import save_debate
+        from .persistence import append_debate_log, save_debate
         from .supervisor import run_debate
 
         result = run_debate(args.symbol, thread_id=args.thread_id, verbose=args.verbose)
@@ -111,6 +111,8 @@ def main(argv: list[str] | None = None) -> int:
         if not args.no_save:
             path = save_debate(result)
             print(f"\n  transcript saved to: {path}")
+            log_path = append_debate_log(result)
+            print(f"  appended to: {log_path}")
         return 0
 
     if args.cmd == "replay":
