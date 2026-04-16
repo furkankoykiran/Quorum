@@ -184,3 +184,75 @@ def test_replay_debate_prints_transcript(tmp_path: Path):
     assert "news_agent" in output
     assert "risk_agent" in output
     assert "FINAL DECISION: HOLD" in output
+
+
+# ---------------------------------------------------------------------------
+# Day 9: Pyth gate + Jupiter quote
+# ---------------------------------------------------------------------------
+
+
+def test_pyth_gate_holds_on_subprocess_error(monkeypatch):
+    """Subprocess timeout / OSError → fail-closed HOLD with reason hold_error."""
+    import subprocess
+
+    from apps.orchestrator.tools import pyth_gate
+
+    def boom(*_args, **_kwargs):
+        raise subprocess.TimeoutExpired(cmd="pnpm tsx check-price.ts", timeout=5)
+
+    monkeypatch.setattr(pyth_gate.subprocess, "run", boom)
+    result = pyth_gate.check_pyth("SOL/USDT")
+    assert result["ok"] is False
+    assert result["reason"] == "hold_error"
+
+
+def test_pyth_gate_holds_on_wide_confidence(monkeypatch):
+    """conf_pct above the policy threshold → HOLD with reason hold_wide_conf."""
+    from apps.orchestrator.tools import pyth_gate
+
+    fake_stdout = (
+        "feed=ef0d8b6fda2ceba4   endpoint=https://hermes.pyth.network\n"
+        "price=$100.0000  ±$5.0000 (1σ)\n"
+        "published=2026-04-16T10:00:00.000Z  staleness=2s\n"
+    )
+
+    class _Proc:
+        returncode = 0
+        stdout = fake_stdout
+        stderr = ""
+
+    monkeypatch.setattr(pyth_gate.subprocess, "run", lambda *a, **kw: _Proc())
+    result = pyth_gate.check_pyth("SOL/USDT", max_conf_pct=1.0)
+    assert result["ok"] is False
+    assert result["reason"] == "hold_wide_conf"
+    assert result["staleness_s"] == 2
+    assert result["conf_pct"] == 5.0
+
+
+def test_jupiter_quote_attaches_response(monkeypatch):
+    """Mocked httpx.get returns a canned Jupiter payload; quote_spot returns it."""
+    from apps.orchestrator.tools import jupiter_quote
+
+    canned = {
+        "inputMint": jupiter_quote.SOL_MINT,
+        "outputMint": jupiter_quote.USDC_MINT,
+        "inAmount": "1000000000",
+        "outAmount": "84970000",
+        "routePlan": [{"swapInfo": {"label": "Raydium"}}],
+    }
+
+    class _Resp:
+        status_code = 200
+
+        def json(self):
+            return canned
+
+    monkeypatch.setattr(
+        jupiter_quote.httpx,
+        "get",
+        lambda *a, **kw: _Resp(),
+    )
+    out = jupiter_quote.quote_spot(jupiter_quote.SOL_MINT, jupiter_quote.USDC_MINT, 1_000_000_000)
+    assert out is not None
+    assert out["outAmount"] == "84970000"
+    assert out["routePlan"][0]["swapInfo"]["label"] == "Raydium"
