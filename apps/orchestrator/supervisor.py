@@ -2,7 +2,7 @@
 
 The debate runs as an explicit `StateGraph` with hard-coded sequential edges:
 
-    START → tech → news → risk (Pyth-gated) → tally → jupiter_quote → END
+    START → tech → news → risk (Pyth-gated) → tally → jupiter_quote → dry_run → END
 
 Each specialist node spins up a short-lived `create_react_agent`, feeds it
 the symbol, extracts the `FINAL: {...}` JSON tail, and appends one
@@ -10,8 +10,11 @@ the symbol, extracts the `FINAL: {...}` JSON tail, and appends one
 Hermes staleness/confidence gate (Day 9): a failing gate skips the LLM
 call and forces a HOLD with a gate-citing rationale. The tally node runs
 the equal-weight vote rule. The post-tally `jupiter_quote_node` attaches
-a fresh Jupiter route quote on BUY/SELL verdicts. Milestone 4 swaps the
-tally node for an LLM-driven Shapley counterfactual.
+a fresh Jupiter route quote on BUY/SELL verdicts. The `dry_run` node
+(Day 10) submits a read-only mainnet `simulateTransaction` and attaches
+a deterministic per-cycle signature; it is gated on QUORUM_LIVE so the
+runner never broadcasts. Milestone 4 swaps the tally node for an
+LLM-driven Shapley counterfactual.
 
 This module deliberately does NOT use `langgraph-supervisor`'s LLM-routed
 handoff pattern — during Milestone 1 we observed that non-Anthropic gateway
@@ -21,6 +24,7 @@ instruction, so the graph has to force the ordering.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -30,6 +34,7 @@ from langgraph.graph import END, START, StateGraph
 
 from .agents import build_news_agent, build_risk_agent, build_tech_agent
 from .state import AgentTurn, DebateState, PythGate, Vote
+from .tools.dry_run import simulate_vault_swap
 from .tools.jupiter_quote import SOL_MINT, USDC_MINT, quote_spot
 from .tools.pyth_gate import check_pyth
 from .vote import parse_final, tally
@@ -37,6 +42,27 @@ from .vote import parse_final, tally
 # Default notional for the post-tally Jupiter quote. 1 SOL mirrors what
 # vault-swap.ts targets and matches the largest devnet vault holding.
 _DEFAULT_QUOTE_AMOUNT_LAMPORTS = 1_000_000_000
+
+
+def _dry_run_node(state: DebateState) -> dict[str, Any]:
+    """Read-only Jupiter swap simulation for BUY/SELL verdicts.
+
+    Subprocess-calls vault-swap-dry.ts on mainnet RPC (no signing, no
+    broadcast). Skipped on HOLD, when no quote attached, or when
+    QUORUM_LIVE=1 (live submission lands in a later block). The
+    derived ``signature`` field is the sha256[:16] of the v0 message
+    base64 — compact, deterministic, suitable as a per-cycle id.
+    """
+    if state.get("final_decision") not in {"BUY", "SELL"}:
+        return {"dry_run_signature": None}
+    if state.get("jupiter_quote") is None:
+        return {"dry_run_signature": None}
+    if os.environ.get("QUORUM_LIVE") == "1":
+        return {"dry_run_signature": None}
+    payload = simulate_vault_swap(SOL_MINT, USDC_MINT, _DEFAULT_QUOTE_AMOUNT_LAMPORTS)
+    if payload is None:
+        return {"dry_run_signature": None}
+    return {"dry_run_signature": payload.get("signature")}
 
 
 @dataclass
@@ -83,7 +109,6 @@ def _build_model(model_name: str) -> BaseChatModel:
 
     # LiteLLM reads provider keys from env vars. Surface whichever keys the
     # user has set so any provider in quorum_model works without extra wiring.
-    import os
 
     if cfg.deepseek_api_key:
         os.environ.setdefault("DEEPSEEK_API_KEY", cfg.deepseek_api_key)
@@ -235,13 +260,15 @@ def _build_workflow(model_name: str | None = None):
     graph.add_node("risk_agent", risk_node)
     graph.add_node("tally", _tally_node)
     graph.add_node("jupiter_quote", _jupiter_quote_node)
+    graph.add_node("dry_run", _dry_run_node)
 
     graph.add_edge(START, "tech_agent")
     graph.add_edge("tech_agent", "news_agent")
     graph.add_edge("news_agent", "risk_agent")
     graph.add_edge("risk_agent", "tally")
     graph.add_edge("tally", "jupiter_quote")
-    graph.add_edge("jupiter_quote", END)
+    graph.add_edge("jupiter_quote", "dry_run")
+    graph.add_edge("dry_run", END)
 
     return graph.compile()
 

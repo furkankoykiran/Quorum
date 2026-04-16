@@ -76,6 +76,7 @@ class RunnerMetrics:
     retries: int = 0
     pyth_gate_holds: int = 0
     jupiter_quotes_attached: int = 0
+    dry_run_built: int = 0
     latencies: list[float] = field(default_factory=list)
     error_log: list[dict] = field(default_factory=list)
 
@@ -109,6 +110,8 @@ class RunnerMetrics:
             self.pyth_gate_holds += 1
         if isinstance(result.jupiter_quote, dict):
             self.jupiter_quotes_attached += 1
+        if result.dry_run_signature:
+            self.dry_run_built += 1
 
     def record_error(self, error: Exception, elapsed: float) -> None:
         self.total += 1
@@ -131,7 +134,9 @@ class RunnerMetrics:
             f"  runs: {self.total}  |  ok: {self.success}  |  errors: {self.errors}"
             f"  (rate_limit: {self.rate_limit_errors})"
             f"  |  parse_fail: {self.parse_failures}  |  retries: {self.retries}",
-            f"  pyth_holds: {self.pyth_gate_holds}  |  jup_quotes: {self.jupiter_quotes_attached}",
+            f"  pyth_holds: {self.pyth_gate_holds}"
+            f"  |  jup_quotes: {self.jupiter_quotes_attached}"
+            f"  |  dry_runs: {self.dry_run_built}",
             f"  success rate: {self.success_rate:.1f}%",
             f"  latency avg: {self.avg_latency:.1f}s  |  p95: {self.p95_latency:.1f}s",
         ]
@@ -147,6 +152,7 @@ class RunnerMetrics:
             "retries": self.retries,
             "pyth_gate_holds": self.pyth_gate_holds,
             "jupiter_quotes_attached": self.jupiter_quotes_attached,
+            "dry_run_built": self.dry_run_built,
             "success_rate": round(self.success_rate, 2),
             "avg_latency": round(self.avg_latency, 2),
             "p95_latency": round(self.p95_latency, 2),
