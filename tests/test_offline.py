@@ -256,3 +256,35 @@ def test_jupiter_quote_attaches_response(monkeypatch):
     assert out is not None
     assert out["outAmount"] == "84970000"
     assert out["routePlan"][0]["swapInfo"]["label"] == "Raydium"
+
+
+# ---------------------------------------------------------------------------
+# Day 10: dry-run hook
+# ---------------------------------------------------------------------------
+
+
+def test_dry_run_attaches_signature(monkeypatch):
+    """Mocked subprocess returns a v0 message; simulate_vault_swap derives sig."""
+    import subprocess as _subprocess
+
+    from apps.orchestrator.tools import dry_run
+
+    fake_stdout = (
+        '{"simulated": true, "err": null, "compute_units": 12345, '
+        '"logs_tail": ["log a", "log b"], "tx_message_b64": "AAAA", '
+        '"quote_out_amount": "100", "quote_route_hops": 1}\n'
+    )
+
+    def fake_run(*_args, **_kwargs):
+        return _subprocess.CompletedProcess(args=_args, returncode=0, stdout=fake_stdout, stderr="")
+
+    monkeypatch.setattr(dry_run.subprocess, "run", fake_run)
+    payload = dry_run.simulate_vault_swap(
+        "So11111111111111111111111111111111111111112",
+        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        1_000_000_000,
+    )
+    assert payload is not None
+    assert payload["tx_message_b64"] == "AAAA"
+    assert payload["signature"].startswith("sim:")
+    assert payload["signature"] == dry_run.derive_dry_run_signature(payload)
