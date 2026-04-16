@@ -38,3 +38,22 @@ def save_debate(result: "DebateResult", run_dir: Path | str = "debate_runs") -> 
     payload = result.to_dict()
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
     return path
+
+
+def append_debate_log(
+    result: "DebateResult", jsonl_path: Path | str = "data/debate_log.jsonl"
+) -> Path:
+    """Append one JSON line per debate to a flat log file.
+
+    The log is the long-running record consumed by metrics dashboards and
+    the weekly Colosseum video script. Per-debate JSON in `debate_runs/`
+    is for replay; this jsonl is for time-series scanning.
+    """
+    path = Path(jsonl_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = result.to_dict()
+    payload["ts"] = datetime.now(timezone.utc).isoformat()
+    line = json.dumps(payload, ensure_ascii=False)
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(line + "\n")
+    return path
