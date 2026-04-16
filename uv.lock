@@ -1334,7 +1334,7 @@ wheels = [
 
 [[package]]
 name = "langchain-core"
-version = "1.2.27"
+version = "1.2.30"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jsonpatch" },
@@ -1346,9 +1346,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "uuid-utils" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/13/5c/56d19a252bbb26247b7a7cd20821d48804d7ca03212fec709cd8db7c2516/langchain_core-1.2.27.tar.gz", hash = "sha256:c18372e4c4c1454d49bf23a2e484431e71bd39b64173a0f621f0fc283d7183a4", size = 844935, upload-time = "2026-04-07T14:56:32.364Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/aa/c6/f149313d1536de8fe45619d460a12308b5a87947a37d4958024d79b011b0/langchain_core-1.2.30.tar.gz", hash = "sha256:ee6c6b3476215c4be438231bab7003d880359230b9fdf1f65e0ffa1bde8a58e0", size = 850262, upload-time = "2026-04-15T20:37:13.946Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c1/c3/6e0865bc130c448270eb9511b47863a3f9145cdb519b19f6e4758fa63d6f/langchain_core-1.2.27-py3-none-any.whl", hash = "sha256:9ecd6b0393b969fe88f6b9b309367134080ab095946d79e6937dd3911aa42bd5", size = 508315, upload-time = "2026-04-07T14:56:30.93Z" },
+    { url = "https://files.pythonhosted.org/packages/79/46/e988e9f024e762750f9f53878316980bdaea2ab1f19600df01a7c39eda89/langchain_core-1.2.30-py3-none-any.whl", hash = "sha256:26fa50894449b29b31b3712fa4975db679d26abe8241a966ea2c5978b68d8394", size = 513005, upload-time = "2026-04-15T20:37:12.396Z" },
 ]
 
 [[package]]
@@ -3071,7 +3071,7 @@ dev = [
 requires-dist = [
     { name = "edge-tts", marker = "extra == 'reporter'", specifier = ">=6.1" },
     { name = "langchain-anthropic", specifier = ">=0.2.0" },
-    { name = "langchain-core", specifier = ">=0.3.0" },
+    { name = "langchain-core", specifier = ">=1.2.30" },
     { name = "langchain-litellm", specifier = ">=0.1.0" },
     { name = "langgraph", specifier = ">=0.2.50" },
     { name = "litellm", specifier = ">=1.50.0" },
