@@ -22,12 +22,21 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .persistence import save_debate
+from .persistence import append_debate_log, save_debate
 from .supervisor import DebateResult, run_debate
 
 # Retry configuration for transient (rate-limit) failures
 _MAX_RETRIES = 3
 _INITIAL_BACKOFF_S = 30  # 30s → 90s → 270s (×3 geometric)
+
+
+def _is_pyth_gate_hold(result: DebateResult) -> bool:
+    if (result.pyth_gate or "").startswith("hold_"):
+        return True
+    return any(
+        t["agent"] == "risk_agent" and t["rationale"].startswith("[pyth_gate:hold_")
+        for t in result.transcript
+    )
 
 
 def _is_rate_limit(exc: BaseException) -> bool:
@@ -65,6 +74,8 @@ class RunnerMetrics:
     rate_limit_errors: int = 0
     parse_failures: int = 0
     retries: int = 0
+    pyth_gate_holds: int = 0
+    jupiter_quotes_attached: int = 0
     latencies: list[float] = field(default_factory=list)
     error_log: list[dict] = field(default_factory=list)
 
@@ -94,6 +105,10 @@ class RunnerMetrics:
             self.success += 1
         else:
             self.errors += 1
+        if _is_pyth_gate_hold(result):
+            self.pyth_gate_holds += 1
+        if isinstance(result.jupiter_quote, dict):
+            self.jupiter_quotes_attached += 1
 
     def record_error(self, error: Exception, elapsed: float) -> None:
         self.total += 1
@@ -116,6 +131,7 @@ class RunnerMetrics:
             f"  runs: {self.total}  |  ok: {self.success}  |  errors: {self.errors}"
             f"  (rate_limit: {self.rate_limit_errors})"
             f"  |  parse_fail: {self.parse_failures}  |  retries: {self.retries}",
+            f"  pyth_holds: {self.pyth_gate_holds}  |  jup_quotes: {self.jupiter_quotes_attached}",
             f"  success rate: {self.success_rate:.1f}%",
             f"  latency avg: {self.avg_latency:.1f}s  |  p95: {self.p95_latency:.1f}s",
         ]
@@ -129,6 +145,8 @@ class RunnerMetrics:
             "rate_limit_errors": self.rate_limit_errors,
             "parse_failures": self.parse_failures,
             "retries": self.retries,
+            "pyth_gate_holds": self.pyth_gate_holds,
+            "jupiter_quotes_attached": self.jupiter_quotes_attached,
             "success_rate": round(self.success_rate, 2),
             "avg_latency": round(self.avg_latency, 2),
             "p95_latency": round(self.p95_latency, 2),
@@ -212,6 +230,13 @@ def run_continuous(
         if result is not None:
             metrics.record_success(result, elapsed)
             save_debate(result)
+            try:
+                append_debate_log(result)
+            except OSError as log_exc:
+                print(
+                    f"  [runner] warn: debate_log append failed: {log_exc}",
+                    file=sys.stderr,
+                )
             print(
                 f"  {result.final_decision}  ({elapsed:.1f}s)"
                 f"  [{metrics.success}/{metrics.total} ok]",
