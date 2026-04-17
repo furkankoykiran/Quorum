@@ -77,6 +77,7 @@ class RunnerMetrics:
     pyth_gate_holds: int = 0
     jupiter_quotes_attached: int = 0
     dry_run_built: int = 0
+    shapley_attached: int = 0
     latencies: list[float] = field(default_factory=list)
     error_log: list[dict] = field(default_factory=list)
 
@@ -112,6 +113,12 @@ class RunnerMetrics:
             self.jupiter_quotes_attached += 1
         if result.dry_run_signature:
             self.dry_run_built += 1
+        if (
+            isinstance(result.shapley_weights, dict)
+            and result.shapley_weights
+            and not (result.shapley_rationale or "").startswith("[shapley_")
+        ):
+            self.shapley_attached += 1
 
     def record_error(self, error: Exception, elapsed: float) -> None:
         self.total += 1
@@ -136,7 +143,8 @@ class RunnerMetrics:
             f"  |  parse_fail: {self.parse_failures}  |  retries: {self.retries}",
             f"  pyth_holds: {self.pyth_gate_holds}"
             f"  |  jup_quotes: {self.jupiter_quotes_attached}"
-            f"  |  dry_runs: {self.dry_run_built}",
+            f"  |  dry_runs: {self.dry_run_built}"
+            f"  |  shapley: {self.shapley_attached}",
             f"  success rate: {self.success_rate:.1f}%",
             f"  latency avg: {self.avg_latency:.1f}s  |  p95: {self.p95_latency:.1f}s",
         ]
@@ -153,6 +161,7 @@ class RunnerMetrics:
             "pyth_gate_holds": self.pyth_gate_holds,
             "jupiter_quotes_attached": self.jupiter_quotes_attached,
             "dry_run_built": self.dry_run_built,
+            "shapley_attached": self.shapley_attached,
             "success_rate": round(self.success_rate, 2),
             "avg_latency": round(self.avg_latency, 2),
             "p95_latency": round(self.p95_latency, 2),

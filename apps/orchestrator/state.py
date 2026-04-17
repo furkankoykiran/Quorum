@@ -1,10 +1,13 @@
 """Shared state for the Quorum trading-committee debate.
 
 The debate runs as an explicit `StateGraph` with deterministic sequential
-edges: tech → news → risk (Pyth-gated) → tally → jupiter_quote → dry_run.
-Each specialist node appends one `AgentTurn` to `transcript`; the `tally`
-node fills `votes` and `final_decision`. Milestone 4 will replace the
-equal-weight tally with an LLM-driven Shapley counterfactual node.
+edges: tech → news → risk (Pyth-gated) → tally → jupiter_quote → dry_run
+→ shapley. Each specialist node appends one `AgentTurn` to `transcript`;
+the `tally` node fills `votes` and `final_decision`. The `shapley` node
+(Day 12) calls the LLM with the full post-debate state and returns
+counterfactual weights per specialist — Milestone 4 kickoff. The tally
+itself is still equal-weight; Shapley attribution is currently a parallel
+channel used for operator payout, not a replacement vote rule.
 
 `pyth_price` / `pyth_gate` are written by the risk node (Day 9). The
 post-tally `jupiter_quote_node` attaches `jupiter_quote` for BUY/SELL
@@ -45,3 +48,5 @@ class DebateState(TypedDict, total=False):
     pyth_gate: PythGate
     jupiter_quote: Optional[dict[str, Any]]
     dry_run_signature: Optional[str]
+    shapley_weights: dict[str, float]
+    shapley_rationale: str
