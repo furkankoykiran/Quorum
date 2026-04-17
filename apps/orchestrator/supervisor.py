@@ -2,7 +2,8 @@
 
 The debate runs as an explicit `StateGraph` with hard-coded sequential edges:
 
-    START → tech → news → risk (Pyth-gated) → tally → jupiter_quote → dry_run → END
+    START → tech → news → risk (Pyth-gated) → tally → jupiter_quote
+          → dry_run → shapley → END
 
 Each specialist node spins up a short-lived `create_react_agent`, feeds it
 the symbol, extracts the `FINAL: {...}` JSON tail, and appends one
@@ -13,8 +14,10 @@ the equal-weight vote rule. The post-tally `jupiter_quote_node` attaches
 a fresh Jupiter route quote on BUY/SELL verdicts. The `dry_run` node
 (Day 10) submits a read-only mainnet `simulateTransaction` and attaches
 a deterministic per-cycle signature; it is gated on QUORUM_LIVE so the
-runner never broadcasts. Milestone 4 swaps the tally node for an
-LLM-driven Shapley counterfactual.
+runner never broadcasts. The `shapley` node (Day 12) runs an LLM
+counterfactual pass over the whole state and emits per-specialist
+weights used for operator payout attribution — the BUY/SELL/HOLD tally
+itself is still equal-weight.
 
 This module deliberately does NOT use `langgraph-supervisor`'s LLM-routed
 handoff pattern — during Milestone 1 we observed that non-Anthropic gateway
@@ -32,12 +35,17 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage
 from langgraph.graph import END, START, StateGraph
 
-from .agents import build_news_agent, build_risk_agent, build_tech_agent
+from .agents import (
+    build_news_agent,
+    build_risk_agent,
+    build_tech_agent,
+    run_shapley_attribution,
+)
 from .state import AgentTurn, DebateState, PythGate, Vote
 from .tools.dry_run import simulate_vault_swap
 from .tools.jupiter_quote import SOL_MINT, USDC_MINT, quote_spot
 from .tools.pyth_gate import check_pyth
-from .vote import parse_final, tally
+from .vote import DEFAULT_SPECIALIST_AGENTS, parse_final, parse_shapley_final, tally
 
 # Default notional for the post-tally Jupiter quote. 1 SOL mirrors what
 # vault-swap.ts targets and matches the largest devnet vault holding.
@@ -65,6 +73,50 @@ def _dry_run_node(state: DebateState) -> dict[str, Any]:
     return {"dry_run_signature": payload.get("signature")}
 
 
+def _equal_specialist_weights() -> dict[str, float]:
+    """Equal-weight fallback over the three standing specialists.
+
+    Used when the Shapley LLM call errors or its output fails to parse —
+    the downstream payout code can still settle against a uniform
+    distribution without silently dropping the cycle.
+    """
+    count = len(DEFAULT_SPECIALIST_AGENTS)
+    even = 1.0 / count
+    return {agent: even for agent in DEFAULT_SPECIALIST_AGENTS}
+
+
+def _make_shapley_node(model: BaseChatModel):
+    """Build the Shapley counterfactual attribution node.
+
+    Runs after ``dry_run`` so the LLM sees the final decision + any
+    downstream artefacts. Emits ``shapley_weights`` (specialist → [0, 1],
+    summing to ~1.0) and ``shapley_rationale``. On LLM / parse failure,
+    falls back to equal weights with a diagnostic rationale so the
+    downstream payout code never silently drops a cycle.
+    """
+
+    def node(state: DebateState) -> dict[str, Any]:
+        try:
+            raw = run_shapley_attribution(model, state)
+        except Exception as exc:  # noqa: BLE001 — we surface every error as fallback.
+            return {
+                "shapley_weights": _equal_specialist_weights(),
+                "shapley_rationale": f"[shapley_error] {type(exc).__name__}: {exc}",
+            }
+
+        parsed = parse_shapley_final(raw)
+        if parsed is None:
+            return {
+                "shapley_weights": _equal_specialist_weights(),
+                "shapley_rationale": f"[shapley_parse_failed] raw_tail={raw[-200:]!r}",
+            }
+        weights, rationale = parsed
+        return {"shapley_weights": weights, "shapley_rationale": rationale}
+
+    node.__name__ = "shapley_node"
+    return node
+
+
 @dataclass
 class DebateResult:
     """Outcome of a single trading-committee debate."""
@@ -77,6 +129,8 @@ class DebateResult:
     pyth_gate: PythGate | None = None
     jupiter_quote: dict[str, Any] | None = None
     dry_run_signature: str | None = None
+    shapley_weights: dict[str, float] | None = None
+    shapley_rationale: str | None = None
     raw_messages: list[BaseMessage] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -89,6 +143,8 @@ class DebateResult:
             "pyth_gate": self.pyth_gate,
             "jupiter_quote": self.jupiter_quote,
             "dry_run_signature": self.dry_run_signature,
+            "shapley_weights": self.shapley_weights,
+            "shapley_rationale": self.shapley_rationale,
         }
 
 
@@ -253,6 +309,7 @@ def _build_workflow(model_name: str | None = None):
     tech_node = _make_specialist_node(build_tech_agent, "tech_agent", model)
     news_node = _make_specialist_node(build_news_agent, "news_agent", model)
     risk_node = _make_risk_node(model)
+    shapley_node = _make_shapley_node(model)
 
     graph = StateGraph(DebateState)
     graph.add_node("tech_agent", tech_node)
@@ -261,6 +318,7 @@ def _build_workflow(model_name: str | None = None):
     graph.add_node("tally", _tally_node)
     graph.add_node("jupiter_quote", _jupiter_quote_node)
     graph.add_node("dry_run", _dry_run_node)
+    graph.add_node("shapley", shapley_node)
 
     graph.add_edge(START, "tech_agent")
     graph.add_edge("tech_agent", "news_agent")
@@ -268,7 +326,8 @@ def _build_workflow(model_name: str | None = None):
     graph.add_edge("risk_agent", "tally")
     graph.add_edge("tally", "jupiter_quote")
     graph.add_edge("jupiter_quote", "dry_run")
-    graph.add_edge("dry_run", END)
+    graph.add_edge("dry_run", "shapley")
+    graph.add_edge("shapley", END)
 
     return graph.compile()
 
@@ -328,5 +387,7 @@ def run_debate(
         pyth_gate=state.get("pyth_gate"),
         jupiter_quote=state.get("jupiter_quote"),
         dry_run_signature=state.get("dry_run_signature"),
+        shapley_weights=state.get("shapley_weights"),
+        shapley_rationale=state.get("shapley_rationale"),
         raw_messages=[],
     )
