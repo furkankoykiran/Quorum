@@ -264,6 +264,70 @@ def test_jupiter_quote_attaches_response(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# Day 12: Shapley counterfactual parser
+# ---------------------------------------------------------------------------
+
+
+def test_parse_shapley_final_extracts_weights_and_rationale():
+    from apps.orchestrator.vote import parse_shapley_final
+
+    text = (
+        "Some counterfactual reasoning preamble here.\n"
+        'FINAL: {"weights": {"tech_agent": 0.5, "news_agent": 0.3, '
+        '"risk_agent": 0.2}, "rationale": "Tech carried the vote with RSI 28."}'
+    )
+    parsed = parse_shapley_final(text)
+    assert parsed is not None
+    weights, rationale = parsed
+    assert weights == {"tech_agent": 0.5, "news_agent": 0.3, "risk_agent": 0.2}
+    assert "Tech" in rationale
+    # Floats retain dict shape — no silent string coercion.
+    assert all(isinstance(v, float) for v in weights.values())
+
+
+def test_parse_shapley_final_rejects_malformed_payloads():
+    from apps.orchestrator.vote import parse_shapley_final
+
+    # Missing marker → None.
+    assert parse_shapley_final("no marker here") is None
+    assert parse_shapley_final("") is None
+
+    # Weights don't sum to ~1.0 (0.3+0.3+0.3 = 0.9) → None.
+    bad_sum = (
+        'FINAL: {"weights": {"tech_agent": 0.3, "news_agent": 0.3, '
+        '"risk_agent": 0.3}, "rationale": "x"}'
+    )
+    assert parse_shapley_final(bad_sum) is None
+
+    # Wrong agent key (tech vs tech_agent) → None.
+    wrong_keys = (
+        'FINAL: {"weights": {"tech": 0.5, "news_agent": 0.3, "risk_agent": 0.2}, "rationale": "x"}'
+    )
+    assert parse_shapley_final(wrong_keys) is None
+
+    # Weight above 1.0 → None.
+    out_of_range = (
+        'FINAL: {"weights": {"tech_agent": 1.2, "news_agent": -0.1, '
+        '"risk_agent": -0.1}, "rationale": "x"}'
+    )
+    assert parse_shapley_final(out_of_range) is None
+
+    # Non-numeric weight → None.
+    non_numeric = (
+        'FINAL: {"weights": {"tech_agent": "0.5", "news_agent": 0.3, '
+        '"risk_agent": 0.2}, "rationale": "x"}'
+    )
+    assert parse_shapley_final(non_numeric) is None
+
+    # Empty rationale → None.
+    empty_rationale = (
+        'FINAL: {"weights": {"tech_agent": 0.5, "news_agent": 0.3, '
+        '"risk_agent": 0.2}, "rationale": "   "}'
+    )
+    assert parse_shapley_final(empty_rationale) is None
+
+
+# ---------------------------------------------------------------------------
 # Day 11: fork-swap evidence parser
 # ---------------------------------------------------------------------------
 
