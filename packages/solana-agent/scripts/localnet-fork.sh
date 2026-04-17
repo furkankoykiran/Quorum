@@ -15,8 +15,10 @@
 
 set -euo pipefail
 
-# Mainnet program / mint pins. Update only if Jupiter publishes a new program.
+# Mainnet program / mint pins. Update only if upstreams publish a new program.
 JUPITER_V6_PROGRAM="JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4"  # Jupiter v6 mainnet program
+SQUADS_V4_PROGRAM="SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf"   # Squads V4 program
+SQUADS_PROGRAM_CONFIG="BSTq9w3kZwNwpBXJEvTZz2G9ZTNyKBvoSeXMvwb4cNZr"  # Squads V4 ProgramConfig PDA
 USDC_MINT="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"            # mainnet USDC mint
 MAINNET_RPC="https://api.mainnet-beta.solana.com"
 # Non-default ports so we don't fight a co-tenant uvicorn/gossip on 8000.
@@ -30,12 +32,18 @@ cmd="${1:-boot}"
 case "$cmd" in
   boot)
     echo "[localnet-fork] starting solana-test-validator"
-    echo "  cloning Jupiter v6 program: ${JUPITER_V6_PROGRAM}"
-    echo "  cloning USDC mint:          ${USDC_MINT}"
-    echo "  mainnet upstream:           ${MAINNET_RPC}"
-    echo "  fork RPC:                   ${FORK_RPC}"
-    echo "  ports:                      gossip=${GOSSIP_PORT} rpc=${RPC_PORT} faucet=${FAUCET_PORT}"
+    echo "  cloning Jupiter v6 program:      ${JUPITER_V6_PROGRAM}"
+    echo "  cloning Squads V4 program:       ${SQUADS_V4_PROGRAM}"
+    echo "  cloning Squads ProgramConfig:    ${SQUADS_PROGRAM_CONFIG}"
+    echo "  cloning USDC mint:               ${USDC_MINT}"
+    echo "  mainnet upstream:                ${MAINNET_RPC}"
+    echo "  fork RPC:                        ${FORK_RPC}"
+    echo "  ports:                           gossip=${GOSSIP_PORT} rpc=${RPC_PORT} faucet=${FAUCET_PORT}"
     echo
+    # Squads V4 is an upgradeable BPF program, so use --clone-upgradeable-program
+    # to bring both the program account and its program-data account onto the
+    # fork. The Squads ProgramConfig PDA is an ordinary account so --clone is
+    # sufficient.
     exec solana-test-validator \
       --bind-address 127.0.0.1 \
       --gossip-port "${GOSSIP_PORT}" \
@@ -43,6 +51,8 @@ case "$cmd" in
       --faucet-port "${FAUCET_PORT}" \
       --url "${MAINNET_RPC}" \
       --clone "${JUPITER_V6_PROGRAM}" \
+      --clone-upgradeable-program "${SQUADS_V4_PROGRAM}" \
+      --clone "${SQUADS_PROGRAM_CONFIG}" \
       --clone "${USDC_MINT}" \
       --reset
     ;;
@@ -53,6 +63,14 @@ case "$cmd" in
     echo "[localnet-fork] Jupiter v6 program executable check"
     solana account "${JUPITER_V6_PROGRAM}" --url "${FORK_RPC}" --output json \
       | jq '{executable: .account.executable, owner: .account.owner}'
+    echo
+    echo "[localnet-fork] Squads V4 program executable check"
+    solana account "${SQUADS_V4_PROGRAM}" --url "${FORK_RPC}" --output json \
+      | jq '{executable: .account.executable, owner: .account.owner}'
+    echo
+    echo "[localnet-fork] Squads ProgramConfig exists check"
+    solana account "${SQUADS_PROGRAM_CONFIG}" --url "${FORK_RPC}" --output json \
+      | jq '{lamports: .account.lamports, owner: .account.owner}'
     echo
     echo "[localnet-fork] USDC mint exists check"
     solana account "${USDC_MINT}" --url "${FORK_RPC}" --output json \

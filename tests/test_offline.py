@@ -263,6 +263,70 @@ def test_jupiter_quote_attaches_response(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Day 11: fork-swap evidence parser
+# ---------------------------------------------------------------------------
+
+
+def test_fork_evidence_parser_round_trip(tmp_path: Path):
+    """A well-formed payload round-trips through parse_evidence and the
+    Squads-round-trip helper returns True when all five sigs are present
+    even if the execute step failed (fork-side ALT gap is expected)."""
+    from apps.orchestrator.tools.fork_evidence import (
+        ForkEvidenceError,
+        load_evidence,
+        parse_evidence,
+        squads_round_trip_ok,
+    )
+
+    good = {
+        "ts_start": "2026-04-17T12:21:00Z",
+        "ts_end": "2026-04-17T12:21:24Z",
+        "fork_rpc": "http://127.0.0.1:18899",
+        "multisig_pda": "CqQL1fkyb6oiWrpG7xnTGrraMU1P9HTiY38wwvJYfBWp",
+        "vault_pda": "WQUMkUKY5Zq95FHgnrJkY3DkN2BZ9dbcTKEHYUcc1fc",
+        "amount_sol": 0.1,
+        "jupiter_quote_out_raw": "8826346",
+        "vault_before": {"sol_lamports": 2_000_000_000, "usdc_raw": "0"},
+        "vault_after": {"sol_lamports": 2_000_000_000, "usdc_raw": "0"},
+        "signatures": {
+            "vault_transaction_create": "sig_create",
+            "proposal_create": "sig_propose",
+            "proposal_approve_1": "sig_a1",
+            "proposal_approve_2": "sig_a2",
+            "proposal_approve_3": "sig_a3",
+            "vault_transaction_execute": "",
+        },
+        "execute": {"ok": False, "error": "Address lookup table account ... not found"},
+    }
+
+    parsed = parse_evidence(good)
+    assert parsed["multisig_pda"] == good["multisig_pda"]
+    assert squads_round_trip_ok(parsed) is True
+
+    # File round-trip.
+    path = tmp_path / "fork-swap-evidence-test.json"
+    path.write_text(json.dumps(good), encoding="utf-8")
+    loaded = load_evidence(path)
+    assert loaded["execute"]["ok"] is False
+
+    # Missing a required top-level field fails closed.
+    bad_missing = {k: v for k, v in good.items() if k != "signatures"}
+    try:
+        parse_evidence(bad_missing)
+    except ForkEvidenceError as exc:
+        assert "signatures" in str(exc)
+    else:
+        raise AssertionError("parse_evidence should have raised")
+
+    # squads_round_trip_ok returns False when one approve slot is empty.
+    missing_approve = {
+        **good,
+        "signatures": {**good["signatures"], "proposal_approve_2": ""},
+    }
+    assert squads_round_trip_ok(missing_approve) is False
+
+
 def test_dry_run_attaches_signature(monkeypatch):
     """Mocked subprocess returns a v0 message; simulate_vault_swap derives sig."""
     import subprocess as _subprocess
