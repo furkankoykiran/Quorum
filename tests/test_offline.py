@@ -428,6 +428,98 @@ def test_shapley_history_round_trip(tmp_path: Path):
 
 
 # ---------------------------------------------------------------------------
+# Day 14: payout scaffold (Python bridge)
+# ---------------------------------------------------------------------------
+
+
+def test_build_payout_schedule_floors_and_routes_residual_to_operator_1():
+    from apps.orchestrator.tools.payout import build_payout_schedule
+
+    # Pick a total fee that floors unevenly across three agents: with weights
+    # 0.40/0.35/0.25 × 1_000_003 = 400001.2, 350001.05, 250000.75 → floors
+    # 400001, 350001, 250000 (sum 1_000_002) → residual 1 to operator-1.
+    rolling = {"news_agent": 0.35, "risk_agent": 0.25, "tech_agent": 0.40}
+    pubkeys = ["OP1_PUBKEY_STUB", "OP2_PUBKEY_STUB", "OP3_PUBKEY_STUB"]
+    schedule = build_payout_schedule(rolling, pubkeys, 1_000_003)
+
+    # Agents are sorted deterministically; the first sorted agent is the
+    # residual sink regardless of which weight it carries.
+    assert [e["agent"] for e in schedule["entries"]] == [
+        "news_agent",
+        "risk_agent",
+        "tech_agent",
+    ]
+    assert schedule["residual_operator"] == "OP1_PUBKEY_STUB"
+    assert schedule["residual_lamports"] == 1
+
+    lamports_by_op = {e["operator"]: e["lamports"] for e in schedule["entries"]}
+    assert lamports_by_op["OP1_PUBKEY_STUB"] == 350001 + 1  # floor + residual
+    assert lamports_by_op["OP2_PUBKEY_STUB"] == 250000
+    assert lamports_by_op["OP3_PUBKEY_STUB"] == 400001
+    # Conservation: every lamport of the total fee is accounted for.
+    assert sum(lamports_by_op.values()) == 1_000_003
+    # The payload passed on stdin to payout.ts is keyed by pubkey and weight.
+    assert schedule["payload"] == {
+        "OP1_PUBKEY_STUB": 0.35,
+        "OP2_PUBKEY_STUB": 0.25,
+        "OP3_PUBKEY_STUB": 0.40,
+    }
+
+    # Too few pubkeys must fail fast before any lamport math.
+    import pytest
+
+    with pytest.raises(ValueError):
+        build_payout_schedule(rolling, ["only-one"], 100)
+
+
+def test_dry_run_payout_parses_subprocess_json(monkeypatch):
+    """Mocked subprocess: dry_run_payout surfaces the last-line JSON payload."""
+    import subprocess as _subprocess
+
+    from apps.orchestrator.tools import payout as payout_module
+
+    fake_stdout = (
+        "[payout] mode=DRY-RUN  operators=2  fee=200 lamports  residual=0\n"
+        '{"dry_run": true, "submit": false, "payout_live": false, '
+        '"rpc_url": "http://127.0.0.1:18899", '
+        '"schedule": [{"operator": "OP1", "weight": 0.5, "lamports": 100}, '
+        '{"operator": "OP2", "weight": 0.5, "lamports": 100}], '
+        '"total_fee_lamports": 200, "residual_lamports": 0, '
+        '"residual_operator": "OP1"}\n'
+    )
+    captured: dict = {}
+
+    def fake_run(cmd, **kwargs):
+        captured["cmd"] = cmd
+        captured["stdin"] = kwargs.get("input")
+        return _subprocess.CompletedProcess(args=cmd, returncode=0, stdout=fake_stdout, stderr="")
+
+    monkeypatch.setattr(payout_module.subprocess, "run", fake_run)
+
+    schedule = {
+        "payload": {"OP1": 0.5, "OP2": 0.5},
+        "total_fee_lamports": 200,
+    }
+    result = payout_module.dry_run_payout(schedule)
+    assert result is not None
+    assert result["dry_run"] is True
+    assert result["total_fee_lamports"] == 200
+    assert len(result["schedule"]) == 2
+
+    # The subprocess must have been invoked without --submit (no live path).
+    assert "--submit" not in captured["cmd"]
+    # Stdin must be the JSON payload keyed by pubkey, not the whole schedule.
+    assert json.loads(captured["stdin"]) == {"OP1": 0.5, "OP2": 0.5}
+
+    # Non-zero exit → None, no exception.
+    def fake_fail(cmd, **kwargs):
+        return _subprocess.CompletedProcess(args=cmd, returncode=1, stdout="", stderr="boom")
+
+    monkeypatch.setattr(payout_module.subprocess, "run", fake_fail)
+    assert payout_module.dry_run_payout(schedule) is None
+
+
+# ---------------------------------------------------------------------------
 # Day 11: fork-swap evidence parser
 # ---------------------------------------------------------------------------
 
