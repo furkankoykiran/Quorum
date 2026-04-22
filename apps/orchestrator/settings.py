@@ -83,6 +83,17 @@ class Settings(BaseSettings):
         default=False,
         description="Enable live freqtrade-mcp for the Tech agent.",
     )
+    quorum_shapley_samples: int = Field(
+        default=3,
+        description=(
+            "Number of LLM samples per Shapley attribution cycle (Day 13). "
+            "Samples are parsed, outlier-filtered, then averaged."
+        ),
+    )
+    quorum_shapley_window: int = Field(
+        default=10,
+        description="Rolling-window length over which Shapley weights are averaged for payout.",
+    )
 
     # --- MCP servers ---
     rss_feeds: str = Field(

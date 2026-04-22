@@ -50,3 +50,4 @@ class DebateState(TypedDict, total=False):
     dry_run_signature: Optional[str]
     shapley_weights: dict[str, float]
     shapley_rationale: str
+    shapley_rolling_weights: dict[str, float]

@@ -14,7 +14,9 @@ model rather than as a react agent.
 
 from __future__ import annotations
 
+import asyncio
 import json
+from collections.abc import Iterable
 from typing import Any
 
 from langchain_core.language_models import BaseChatModel
@@ -75,12 +77,53 @@ def _state_summary(state: dict[str, Any]) -> str:
     )
 
 
+def _shapley_messages(state: dict[str, Any]) -> list:
+    return [
+        SystemMessage(content=SHAPLEY_PROMPT),
+        HumanMessage(content=_state_summary(state)),
+    ]
+
+
 def run_shapley_attribution(model: BaseChatModel, state: dict[str, Any]) -> str:
     """Invoke the Shapley LLM once and return the raw response text."""
-    response = model.invoke(
-        [
-            SystemMessage(content=SHAPLEY_PROMPT),
-            HumanMessage(content=_state_summary(state)),
-        ]
-    )
+    response = model.invoke(_shapley_messages(state))
     return _extract_text(getattr(response, "content", ""))
+
+
+def run_shapley_attribution_multi(
+    model: BaseChatModel, state: dict[str, Any], n: int = 3
+) -> list[str]:
+    """Invoke the Shapley LLM ``n`` times and return each raw response.
+
+    Prefers ``asyncio.gather`` over ``model.ainvoke`` when the model
+    supports it and no event loop is already running (the supervisor
+    calls this from a sync LangGraph node). Falls back to sequential
+    ``model.invoke`` when ``ainvoke`` is missing or we're nested inside
+    a running loop.
+    """
+    if n <= 0:
+        return []
+    messages = _shapley_messages(state)
+    ainvoke = getattr(model, "ainvoke", None)
+    if callable(ainvoke):
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return _run_parallel(ainvoke, messages, n)
+    return [_extract_text(getattr(model.invoke(messages), "content", "")) for _ in range(n)]
+
+
+def _run_parallel(ainvoke, messages: Iterable, n: int) -> list[str]:
+    async def _gather() -> list[str]:
+        responses = await asyncio.gather(
+            *(ainvoke(list(messages)) for _ in range(n)), return_exceptions=True
+        )
+        texts: list[str] = []
+        for r in responses:
+            if isinstance(r, Exception):
+                texts.append("")
+                continue
+            texts.append(_extract_text(getattr(r, "content", "")))
+        return texts
+
+    return asyncio.run(_gather())
