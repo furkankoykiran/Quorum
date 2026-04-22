@@ -39,13 +39,14 @@ from .agents import (
     build_news_agent,
     build_risk_agent,
     build_tech_agent,
-    run_shapley_attribution,
+    run_shapley_attribution_multi,
 )
 from .state import AgentTurn, DebateState, PythGate, Vote
 from .tools.dry_run import simulate_vault_swap
 from .tools.jupiter_quote import SOL_MINT, USDC_MINT, quote_spot
 from .tools.pyth_gate import check_pyth
-from .vote import DEFAULT_SPECIALIST_AGENTS, parse_final, parse_shapley_final, tally
+from .tools.shapley_history import append_weights, load_rolling_average
+from .vote import DEFAULT_SPECIALIST_AGENTS, aggregate_shapley_samples, parse_final, tally
 
 # Default notional for the post-tally Jupiter quote. 1 SOL mirrors what
 # vault-swap.ts targets and matches the largest devnet vault holding.
@@ -88,30 +89,60 @@ def _equal_specialist_weights() -> dict[str, float]:
 def _make_shapley_node(model: BaseChatModel):
     """Build the Shapley counterfactual attribution node.
 
-    Runs after ``dry_run`` so the LLM sees the final decision + any
-    downstream artefacts. Emits ``shapley_weights`` (specialist → [0, 1],
-    summing to ~1.0) and ``shapley_rationale``. On LLM / parse failure,
-    falls back to equal weights with a diagnostic rationale so the
-    downstream payout code never silently drops a cycle.
+    Day 13 deepens the Day 12 single-sample scaffold: the node runs N
+    LLM calls (``quorum_shapley_samples``), drops unparseable samples
+    and per-agent 2σ outliers, averages the survivors, then persists
+    the cycle's final weights to ``data/shapley_history.jsonl`` and
+    loads a rolling-window average over the last K cycles
+    (``quorum_shapley_window``). Both the cycle-local average and the
+    rolling average are written back to state so Day 16's payout hook
+    can read a smoothed distribution.
+
+    On LLM / parse / aggregation failure, falls back to equal weights
+    with a ``[shapley_*]``-tagged rationale; the runner metric
+    ``shapley_attached`` gates on success (rationale not starting with
+    ``[shapley_``) so fallbacks stay out of the attach count.
     """
+    from .settings import get_settings
+
+    cfg = get_settings()
+    n_samples = max(1, cfg.quorum_shapley_samples)
+    window = max(1, cfg.quorum_shapley_window)
 
     def node(state: DebateState) -> dict[str, Any]:
         try:
-            raw = run_shapley_attribution(model, state)
+            samples = run_shapley_attribution_multi(model, state, n=n_samples)
         except Exception as exc:  # noqa: BLE001 — we surface every error as fallback.
+            rolling = load_rolling_average(k=window)
             return {
                 "shapley_weights": _equal_specialist_weights(),
                 "shapley_rationale": f"[shapley_error] {type(exc).__name__}: {exc}",
+                "shapley_rolling_weights": rolling,
             }
 
-        parsed = parse_shapley_final(raw)
-        if parsed is None:
+        aggregated = aggregate_shapley_samples(samples)
+        if aggregated is None:
+            tail = (samples[-1] if samples else "")[-200:]
+            rolling = load_rolling_average(k=window)
             return {
                 "shapley_weights": _equal_specialist_weights(),
-                "shapley_rationale": f"[shapley_parse_failed] raw_tail={raw[-200:]!r}",
+                "shapley_rationale": (
+                    f"[shapley_parse_failed] valid<{2} of {len(samples)}; raw_tail={tail!r}"
+                ),
+                "shapley_rolling_weights": rolling,
             }
-        weights, rationale = parsed
-        return {"shapley_weights": weights, "shapley_rationale": rationale}
+
+        weights, rationale = aggregated
+        try:
+            append_weights(weights)
+        except OSError as exc:
+            rationale = f"{rationale} [history_append_warn: {exc}]"
+        rolling = load_rolling_average(k=window)
+        return {
+            "shapley_weights": weights,
+            "shapley_rationale": rationale,
+            "shapley_rolling_weights": rolling,
+        }
 
     node.__name__ = "shapley_node"
     return node
@@ -131,6 +162,7 @@ class DebateResult:
     dry_run_signature: str | None = None
     shapley_weights: dict[str, float] | None = None
     shapley_rationale: str | None = None
+    shapley_rolling_weights: dict[str, float] | None = None
     raw_messages: list[BaseMessage] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -145,6 +177,7 @@ class DebateResult:
             "dry_run_signature": self.dry_run_signature,
             "shapley_weights": self.shapley_weights,
             "shapley_rationale": self.shapley_rationale,
+            "shapley_rolling_weights": self.shapley_rolling_weights,
         }
 
 
@@ -389,5 +422,6 @@ def run_debate(
         dry_run_signature=state.get("dry_run_signature"),
         shapley_weights=state.get("shapley_weights"),
         shapley_rationale=state.get("shapley_rationale"),
+        shapley_rolling_weights=state.get("shapley_rolling_weights"),
         raw_messages=[],
     )

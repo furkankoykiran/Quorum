@@ -328,6 +328,106 @@ def test_parse_shapley_final_rejects_malformed_payloads():
 
 
 # ---------------------------------------------------------------------------
+# Day 13: multi-sample Shapley aggregation + rolling history
+# ---------------------------------------------------------------------------
+
+
+def _shapley_final(tech: float, news: float, risk: float, note: str = "x") -> str:
+    return (
+        f'FINAL: {{"weights": {{"tech_agent": {tech}, "news_agent": {news}, '
+        f'"risk_agent": {risk}}}, "rationale": "{note}"}}'
+    )
+
+
+def test_aggregate_shapley_samples_averages_valid_ignores_invalid():
+    from apps.orchestrator.vote import aggregate_shapley_samples
+
+    samples = [
+        _shapley_final(0.50, 0.30, 0.20, "tech carried"),
+        _shapley_final(0.40, 0.40, 0.20, "news swung"),
+        "garbage output with no FINAL line",
+        'FINAL: {"weights": {"tech_agent": 2.0, "news_agent": -1.0, '
+        '"risk_agent": 0.0}, "rationale": "bad"}',  # out of range — dropped
+    ]
+    out = aggregate_shapley_samples(samples)
+    assert out is not None
+    weights, rationale = out
+
+    # Only the two valid samples should be averaged.
+    assert abs(weights["tech_agent"] - 0.45) < 1e-3
+    assert abs(weights["news_agent"] - 0.35) < 1e-3
+    assert abs(weights["risk_agent"] - 0.20) < 1e-3
+    assert abs(sum(weights.values()) - 1.0) < 1e-3
+
+    # Rationale must carry the multi-sample tag + the accepted rationales.
+    assert rationale.startswith("avg(n=2)")
+    assert "tech carried" in rationale and "news swung" in rationale
+
+    # Too few valid samples (need ≥ 2) → None so supervisor falls back.
+    assert aggregate_shapley_samples([_shapley_final(0.5, 0.3, 0.2)]) is None
+
+
+def test_aggregate_shapley_samples_rejects_outliers_and_renormalises():
+    from apps.orchestrator.vote import aggregate_shapley_samples
+
+    # Four samples where one is a tech-agent outlier (0.9 vs ~0.3 cluster).
+    # Outlier-dropped tech mean is ~0.3 — close to the cluster.
+    samples = [
+        _shapley_final(0.30, 0.50, 0.20),
+        _shapley_final(0.32, 0.48, 0.20),
+        _shapley_final(0.30, 0.50, 0.20),
+        _shapley_final(0.90, 0.05, 0.05),  # outlier across every agent
+    ]
+    out = aggregate_shapley_samples(samples)
+    assert out is not None
+    weights, _rationale = out
+
+    # Tech cluster mean ~0.307 without the 0.90 outlier; keep it well under 0.5.
+    assert weights["tech_agent"] < 0.5
+    # Final weights sum to 1.0 within tolerance after renormalisation.
+    assert abs(sum(weights.values()) - 1.0) < 1e-3
+    # Floor enforced: no agent drops below 0.01.
+    assert all(v >= 0.01 for v in weights.values())
+
+
+def test_shapley_history_round_trip(tmp_path: Path):
+    from apps.orchestrator.tools.shapley_history import append_weights, load_rolling_average
+
+    path = tmp_path / "shapley_history.jsonl"
+
+    # Empty history → equal weights (never None so payout path is safe).
+    empty = load_rolling_average(k=3, path=path)
+    assert set(empty.keys()) == {"tech_agent", "news_agent", "risk_agent"}
+    assert all(abs(v - 1 / 3) < 1e-6 for v in empty.values())
+
+    # Fewer than k lines → still the equal-weight fallback.
+    append_weights({"tech_agent": 0.7, "news_agent": 0.2, "risk_agent": 0.1}, path=path)
+    short = load_rolling_average(k=3, path=path)
+    assert all(abs(v - 1 / 3) < 1e-6 for v in short.values())
+
+    # Fill the window with three records; rolling average equals per-agent mean.
+    append_weights({"tech_agent": 0.5, "news_agent": 0.3, "risk_agent": 0.2}, path=path)
+    append_weights({"tech_agent": 0.3, "news_agent": 0.4, "risk_agent": 0.3}, path=path)
+    avg = load_rolling_average(k=3, path=path)
+    assert abs(avg["tech_agent"] - (0.7 + 0.5 + 0.3) / 3) < 1e-6
+    assert abs(avg["news_agent"] - (0.2 + 0.3 + 0.4) / 3) < 1e-6
+    assert abs(avg["risk_agent"] - (0.1 + 0.2 + 0.3) / 3) < 1e-6
+
+    # Window=2 tails the last two records only (drops the 0.7 tech line).
+    recent = load_rolling_average(k=2, path=path)
+    assert abs(recent["tech_agent"] - (0.5 + 0.3) / 2) < 1e-6
+
+    # Malformed line must be skipped without blowing up.
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write("not-json\n")
+    robust = load_rolling_average(k=3, path=path)
+    # Window=3 now includes: {0.5,0.3,0.2}, {0.3,0.4,0.3}, and the junk line
+    # (counted into the tail). Malformed line is silently dropped, so per-agent
+    # means use the two surviving numeric rows.
+    assert abs(robust["tech_agent"] - (0.5 + 0.3) / 2) < 1e-6
+
+
+# ---------------------------------------------------------------------------
 # Day 11: fork-swap evidence parser
 # ---------------------------------------------------------------------------
 
