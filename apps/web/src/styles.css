@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --accent: 173 85% 55%;
+}
+
+html,
+body,
+#root {
+  min-height: 100vh;
+  background-color: #0a0d10;
+}
+
+body {
+  font-family: "JetBrains Mono", "Geist Mono", ui-monospace, monospace;
+}
+
+a {
+  color: hsl(var(--accent));
+}
