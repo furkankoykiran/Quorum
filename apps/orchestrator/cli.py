@@ -90,6 +90,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Stream each specialist turn as it lands.",
     )
 
+    api_cmd = sub.add_parser("api", help="Serve the read-only Observatory API.")
+    api_cmd.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1).")
+    api_cmd.add_argument("--port", type=int, default=8081, help="Bind port (default: 8081).")
+    api_cmd.add_argument("--reload", action="store_true", help="Enable uvicorn auto-reload.")
+
     args = parser.parse_args(argv)
 
     if args.cmd == "debate":
@@ -130,6 +135,17 @@ def main(argv: list[str] | None = None) -> int:
             interval=args.interval,
             max_runs=args.max_runs,
             verbose=args.verbose,
+        )
+        return 0
+
+    if args.cmd == "api":
+        import uvicorn
+
+        uvicorn.run(
+            "apps.api.main:app",
+            host=args.host,
+            port=args.port,
+            reload=args.reload,
         )
         return 0
 
