@@ -608,3 +608,109 @@ def test_dry_run_attaches_signature(monkeypatch):
     assert payload["tx_message_b64"] == "AAAA"
     assert payload["signature"].startswith("sim:")
     assert payload["signature"] == dry_run.derive_dry_run_signature(payload)
+
+
+# ---------------------------------------------------------------------------
+# apps.api readers + stats endpoint (Day 15-16 Observatory)
+# ---------------------------------------------------------------------------
+
+
+def _write_jsonl(path: Path, rows: list[str]) -> None:
+    path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+
+
+def _point_api_paths_at(tmp_path: Path, monkeypatch) -> None:
+    from apps.api import paths as api_paths
+
+    monkeypatch.setattr(api_paths, "DATA_DIR", tmp_path)
+
+
+def test_readers_debate_log_limit(tmp_path, monkeypatch):
+    from apps.api import readers
+
+    _point_api_paths_at(tmp_path, monkeypatch)
+
+    rows = [
+        json.dumps({"symbol": "SOL/USDT", "ts": f"2026-04-20T10:{i:02d}:00Z", "votes": {}})
+        for i in range(3)
+    ]
+    # Inject a malformed line in the middle.
+    rows.insert(2, "{this is not json")
+    _write_jsonl(tmp_path / "debate_log.jsonl", rows)
+
+    got = readers.read_debate_log(limit=2)
+    assert len(got) == 2
+    # Newest first; malformed line skipped without raising.
+    assert got[0]["ts"] == "2026-04-20T10:02:00Z"
+    assert got[1]["ts"] == "2026-04-20T10:01:00Z"
+
+
+def test_readers_shapley_history_respects_k(tmp_path, monkeypatch):
+    from apps.api import readers
+
+    _point_api_paths_at(tmp_path, monkeypatch)
+
+    agents = {"tech_agent", "news_agent", "risk_agent"}
+    rows = [
+        json.dumps(
+            {
+                "ts": f"2026-04-22T11:{i:02d}:00Z",
+                "weights": {"tech_agent": 0.3, "news_agent": 0.3, "risk_agent": 0.4},
+            }
+        )
+        for i in range(5)
+    ]
+    _write_jsonl(tmp_path / "shapley_history.jsonl", rows)
+
+    got = readers.read_shapley_history(k=3, limit=3)
+    assert len(got) == 3
+    for point in got:
+        assert set(point["weights"].keys()) == agents
+
+
+def test_stats_endpoint_shape(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from apps.api import paths as api_paths
+    from apps.api.main import create_app
+    from apps.api.models import StatsResponse
+
+    monkeypatch.setattr(api_paths, "DATA_DIR", tmp_path)
+
+    # Minimal runner_metrics.json so the reader returns real values.
+    (tmp_path / "runner_metrics.json").write_text(
+        json.dumps(
+            {
+                "total": 2,
+                "success": 1,
+                "errors": 1,
+                "rate_limit_errors": 0,
+                "parse_failures": 0,
+                "retries": 0,
+                "pyth_gate_holds": 0,
+                "jupiter_quotes_attached": 0,
+                "dry_run_built": 0,
+                "shapley_attached": 1,
+                "success_rate": 50.0,
+                "avg_latency": 12.3,
+                "p95_latency": 20.0,
+                "recent_errors": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    client = TestClient(create_app())
+    resp = client.get("/stats")
+    assert resp.status_code == 200
+
+    payload = resp.json()
+    # Round-trip through the model to confirm every declared field is populated.
+    parsed = StatsResponse.model_validate(payload)
+    assert parsed.total == 2
+    assert parsed.success == 1
+    assert parsed.success_rate == 50.0
+    assert parsed.tests_passing == 23
+    # debates_count / shapley_rows default to 0 when the jsonl files are absent.
+    assert parsed.debates_count == 0
+    assert parsed.shapley_rows == 0

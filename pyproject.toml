@@ -16,6 +16,9 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "mcp>=1.0.0",
     "pydantic-settings>=2.13.1",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "websockets>=13",
 ]
 
 [project.optional-dependencies]
@@ -28,6 +31,7 @@ reporter = [
 dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
+    "httpx>=0.27",
 ]
 
 [tool.uv]
