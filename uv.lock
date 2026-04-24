@@ -1418,8 +1418,7 @@ dependencies = [
     { name = "cryptography" },
     { name = "httpx" },
     { name = "langchain-core" },
-    { name = "litellm", version = "1.83.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "litellm", version = "1.83.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "litellm" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/68/37/ccc1f284a42900ca5b267a50da8e50145e9f264b32ee955ce91aa360d188/langchain_litellm-0.6.4.tar.gz", hash = "sha256:663281db392b3de1f07f891d0f80f9d4b26c0f0d2abbf854ef9b186d99c309ee", size = 339457, upload-time = "2026-04-03T16:56:47.886Z" }
 wheels = [
@@ -1506,53 +1505,25 @@ wheels = [
 name = "litellm"
 version = "1.83.0"
 source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version < '3.11'",
-]
 dependencies = [
-    { name = "aiohttp", marker = "python_full_version < '3.11'" },
+    { name = "aiohttp" },
+    { name = "click", version = "8.1.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "click", version = "8.3.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "fastuuid", marker = "python_full_version < '3.11'" },
-    { name = "httpx", marker = "python_full_version < '3.11'" },
-    { name = "importlib-metadata", marker = "python_full_version < '3.11'" },
-    { name = "jinja2", marker = "python_full_version < '3.11'" },
+    { name = "fastuuid" },
+    { name = "httpx" },
+    { name = "importlib-metadata" },
+    { name = "jinja2" },
+    { name = "jsonschema", version = "4.23.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "jsonschema", version = "4.26.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "openai", marker = "python_full_version < '3.11'" },
-    { name = "pydantic", marker = "python_full_version < '3.11'" },
-    { name = "python-dotenv", version = "1.2.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "tiktoken", marker = "python_full_version < '3.11'" },
-    { name = "tokenizers", marker = "python_full_version < '3.11'" },
+    { name = "openai" },
+    { name = "pydantic" },
+    { name = "python-dotenv" },
+    { name = "tiktoken" },
+    { name = "tokenizers" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/22/92/6ce9737554994ca8e536e5f4f6a87cc7c4774b656c9eb9add071caf7d54b/litellm-1.83.0.tar.gz", hash = "sha256:860bebc76c4bb27b4cf90b4a77acd66dba25aced37e3db98750de8a1766bfb7a", size = 17333062, upload-time = "2026-03-31T05:08:25.331Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/19/2c/a670cc050fcd6f45c6199eb99e259c73aea92edba8d5c2fc1b3686d36217/litellm-1.83.0-py3-none-any.whl", hash = "sha256:88c536d339248f3987571493015784671ba3f193a328e1ea6780dbebaa2094a8", size = 15610306, upload-time = "2026-03-31T05:08:21.987Z" },
-]
-
-[[package]]
-name = "litellm"
-version = "1.83.8"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version >= '3.13'",
-    "python_full_version >= '3.11' and python_full_version < '3.13'",
-]
-dependencies = [
-    { name = "aiohttp", marker = "python_full_version >= '3.11'" },
-    { name = "click", version = "8.1.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "fastuuid", marker = "python_full_version >= '3.11'" },
-    { name = "httpx", marker = "python_full_version >= '3.11'" },
-    { name = "importlib-metadata", marker = "python_full_version >= '3.11'" },
-    { name = "jinja2", marker = "python_full_version >= '3.11'" },
-    { name = "jsonschema", version = "4.23.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "openai", marker = "python_full_version >= '3.11'" },
-    { name = "pydantic", marker = "python_full_version >= '3.11'" },
-    { name = "python-dotenv", version = "1.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "tiktoken", marker = "python_full_version >= '3.11'" },
-    { name = "tokenizers", marker = "python_full_version >= '3.11'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/d2/5a/a7b4b4bf9443b1f1d8fb1e1ed7d1936eca93851ff3e43113c3dad17c6556/litellm-1.83.8.tar.gz", hash = "sha256:38db022b4bf5a51cbe597a8308e6e51eb71254ae684d41aa210b76df0c827063", size = 14751978, upload-time = "2026-04-15T03:37:51.462Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f0/02/ee86522b2cb359079596d224db9b23dc12c02d7eeaf3d458abd7a0c54444/litellm-1.83.8-py3-none-any.whl", hash = "sha256:3bc8cfeff9d73a6a11409006c0d66bafeed9a23db65f642000f72f1cdb2e9ce8", size = 16333221, upload-time = "2026-04-15T03:37:47.934Z" },
 ]
 
 [[package]]
@@ -2789,8 +2760,7 @@ version = "2.13.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
-    { name = "python-dotenv", version = "1.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "python-dotenv", version = "1.2.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "python-dotenv" },
     { name = "typing-inspection" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/52/6d/fffca34caecc4a3f97bda81b2098da5e8ab7efc9a66e819074a11955d87e/pydantic_settings-2.13.1.tar.gz", hash = "sha256:b4c11847b15237fb0171e1462bf540e294affb9b86db4d9aa5c01730bdbe4025", size = 223826, upload-time = "2026-02-19T13:45:08.055Z" }
@@ -2977,24 +2947,8 @@ wheels = [
 
 [[package]]
 name = "python-dotenv"
-version = "1.0.1"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version >= '3.13'",
-    "python_full_version >= '3.11' and python_full_version < '3.13'",
-]
-sdist = { url = "https://files.pythonhosted.org/packages/bc/57/e84d88dfe0aec03b7a2d4327012c1627ab5f03652216c63d49846d7a6c58/python-dotenv-1.0.1.tar.gz", hash = "sha256:e324ee90a023d808f1959c46bcbc04446a10ced277783dc6ee09987c37ec10ca", size = 39115, upload-time = "2024-01-23T06:33:00.505Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/6a/3e/b68c118422ec867fa7ab88444e1274aa40681c606d59ac27de5a5588f082/python_dotenv-1.0.1-py3-none-any.whl", hash = "sha256:f7b63ef50f1b690dddf550d03497b66d609393b40b564ed0d674909a68ebf16a", size = 19863, upload-time = "2024-01-23T06:32:58.246Z" },
-]
-
-[[package]]
-name = "python-dotenv"
 version = "1.2.2"
 source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version < '3.11'",
-]
 sdist = { url = "https://files.pythonhosted.org/packages/82/ed/0301aeeac3e5353ef3d94b6ec08bbcabd04a72018415dcb29e588514bba8/python_dotenv-1.2.2.tar.gz", hash = "sha256:2c371a91fbd7ba082c2c1dc1f8bf89ca22564a087c2c287cd9b662adde799cf3", size = 50135, upload-time = "2026-03-01T16:00:26.196Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/0b/d7/1959b9648791274998a9c3526f6d0ec8fd2233e4d4acce81bbae76b44b2a/python_dotenv-1.2.2-py3-none-any.whl", hash = "sha256:1d8214789a24de455a8b8bd8ae6fe3c6b69a5e3d64aa8a8e5d68e694bbcb285a", size = 22101, upload-time = "2026-03-01T16:00:25.09Z" },
@@ -3105,13 +3059,11 @@ dependencies = [
     { name = "langchain-core" },
     { name = "langchain-litellm" },
     { name = "langgraph" },
-    { name = "litellm", version = "1.83.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "litellm", version = "1.83.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "litellm" },
     { name = "mcp" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
-    { name = "python-dotenv", version = "1.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "python-dotenv", version = "1.2.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "python-dotenv" },
     { name = "uvicorn", extra = ["standard"] },
     { name = "websockets" },
 ]
@@ -3143,7 +3095,7 @@ requires-dist = [
     { name = "mcp", specifier = ">=1.0.0" },
     { name = "pydantic", specifier = ">=2.9.0" },
     { name = "pydantic-settings", specifier = ">=2.13.1" },
-    { name = "python-dotenv", specifier = ">=1.0.1" },
+    { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
     { name = "websockets", specifier = ">=13" },
 ]
@@ -3957,8 +3909,7 @@ wheels = [
 standard = [
     { name = "colorama", marker = "sys_platform == 'win32'" },
     { name = "httptools" },
-    { name = "python-dotenv", version = "1.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "python-dotenv", version = "1.2.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "uvloop", marker = "platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32'" },
     { name = "watchfiles" },
