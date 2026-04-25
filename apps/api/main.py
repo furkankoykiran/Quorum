@@ -20,7 +20,7 @@ def create_app() -> FastAPI:
         version="0.1.0",
         description="Read-only adapter over runner jsonl artefacts.",
     )
-    
+
     allowed_origins = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
@@ -29,7 +29,9 @@ def create_app() -> FastAPI:
     ]
     env_origins = os.environ.get("ALLOWED_ORIGINS", "")
     if env_origins:
-        allowed_origins.extend([origin.strip() for origin in env_origins.split(",") if origin.strip()])
+        allowed_origins.extend(
+            [origin.strip() for origin in env_origins.split(",") if origin.strip()]
+        )
 
     app.add_middleware(
         CORSMiddleware,
@@ -48,12 +50,12 @@ def create_app() -> FastAPI:
     app.include_router(runner.router, prefix="/api")
     app.include_router(payout.router, prefix="/api")
     app.include_router(live.router)
-    
+
     dist_dir = Path(__file__).parent.parent.parent / "apps" / "web" / "dist"
-    
+
     if dist_dir.exists():
         app.mount("/assets", StaticFiles(directory=dist_dir / "assets"), name="assets")
-        
+
         @app.get("/{full_path:path}", include_in_schema=False)
         async def serve_spa(full_path: str):
             path = dist_dir / full_path
@@ -65,5 +67,6 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=404, detail="Not Found")
 
     return app
+
 
 app = create_app()
