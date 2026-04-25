@@ -13,7 +13,6 @@ Usage:
 
 from __future__ import annotations
 
-import json
 import signal
 import sys
 import time
@@ -200,9 +199,35 @@ def run_continuous(
     signal.signal(signal.SIGINT, _handle_signal)
     signal.signal(signal.SIGTERM, _handle_signal)
 
-    metrics = RunnerMetrics()
     metrics_path = Path("data/runner_metrics.json")
     metrics_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Load existing metrics if available
+    metrics = RunnerMetrics()
+    if metrics_path.exists():
+        try:
+            import json
+
+            data = json.loads(metrics_path.read_text(encoding="utf-8"))
+            metrics.total = data.get("total", 0)
+            metrics.success = data.get("success", 0)
+            metrics.errors = data.get("errors", 0)
+            metrics.rate_limit_errors = data.get("rate_limit_errors", 0)
+            metrics.parse_failures = data.get("parse_failures", 0)
+            metrics.retries = data.get("retries", 0)
+            metrics.pyth_gate_holds = data.get("pyth_gate_holds", 0)
+            metrics.jupiter_quotes_attached = data.get("jupiter_quotes_attached", 0)
+            metrics.dry_run_built = data.get("dry_run_built", 0)
+            metrics.shapley_attached = data.get("shapley_attached", 0)
+            # Load latencies
+            if "avg_latency" in data and data["avg_latency"] > 0:
+                # Reconstruct approximate latencies from avg
+                metrics.latencies = [data["avg_latency"]] * metrics.total
+            # Load error log
+            if "recent_errors" in data:
+                metrics.error_log = data["recent_errors"][-5:]  # Keep last 5
+        except (json.JSONDecodeError, KeyError) as e:
+            print(f"  [runner] warn: could not load metrics, starting fresh: {e}", file=sys.stderr)
 
     print(f"  [runner] starting continuous loop — {symbol} every {interval}s", file=sys.stderr)
     print("  [runner] press Ctrl+C to stop gracefully\n", file=sys.stderr)
