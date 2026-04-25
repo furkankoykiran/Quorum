@@ -11,7 +11,7 @@ ExecStart=/root/.pyenv/shims/uv run python -m apps.orchestrator.cli run --symbol
 Restart=on-failure
 RestartSec=30
 
-Environment=PATH=/root/.pyenv/shims:/root/.local/bin:/root/.nvm/versions/node/v24.14.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=PATH=/root/.pyenv/shims:/root/.local/bin:/root/.nvm/versions/node/v24.15.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=HOME=/root
 
 StandardOutput=append:/root/Quorum/data/runner.log

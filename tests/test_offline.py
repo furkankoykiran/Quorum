@@ -701,7 +701,7 @@ def test_stats_endpoint_shape(tmp_path, monkeypatch):
     )
 
     client = TestClient(create_app())
-    resp = client.get("/stats")
+    resp = client.get("/api/stats")
     assert resp.status_code == 200
 
     payload = resp.json()
