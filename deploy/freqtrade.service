@@ -1,0 +1,25 @@
+[Unit]
+Description=Freqtrade Algorithmic Trading Bot
+Documentation=https://www.freqtrade.io/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/Quorum
+ExecStart=/root/.pyenv/shims/uv run freqtrade trade --config /root/freqtrade/config.json --userdir /root/Quorum/user_data
+Restart=on-failure
+RestartSec=30
+
+Environment=PATH=/root/.pyenv/shims:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=HOME=/root
+
+StandardOutput=append:/root/freqtrade/logs/freqtrade.log
+StandardError=append:/root/freqtrade/logs/freqtrade.log
+
+KillSignal=SIGTERM
+TimeoutStopSec=120
+
+[Install]
+WantedBy=multi-user.target

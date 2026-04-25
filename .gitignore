@@ -56,3 +56,4 @@ test-ledger/
 
 # Personal Claude Code slash commands (not shared with teammates).
 .claude/commands/
+user_data/
