@@ -1,0 +1,21 @@
+[Unit]
+Description=Quorum API & Web Frontend (FastAPI)
+Documentation=https://github.com/furkankoykiran/Quorum
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/Quorum
+ExecStart=/root/.pyenv/shims/uv run uvicorn apps.api.main:app --host 127.0.0.1 --port 26715
+Restart=on-failure
+RestartSec=10
+Environment=PATH=/root/.pyenv/shims:/root/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=HOME=/root
+StandardOutput=append:/root/Quorum/data/api.log
+StandardError=append:/root/Quorum/data/api.log
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
