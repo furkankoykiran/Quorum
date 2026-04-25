@@ -175,7 +175,7 @@ _STOP = False
 def _handle_signal(signum, frame):
     global _STOP  # noqa: PLW0603
     _STOP = True
-    print("\n  [runner] shutdown requested, finishing current debate...", file=sys.stderr)
+    # Avoid print in signal handler - can cause reentrant calls
 
 
 def run_continuous(
@@ -260,6 +260,8 @@ def run_continuous(
         elif last_exc is not None:
             metrics.record_error(last_exc, elapsed)
             print(f"  ERROR: {last_exc}  ({elapsed:.1f}s)", file=sys.stderr)
+            print(f"  ERROR TYPE: {type(last_exc).__name__}", file=sys.stderr)
+            print(f"  ERROR REPR: {repr(last_exc)}", file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
 
         # Persist metrics after every run
